@@ -31,7 +31,7 @@ def load_symbol_data(symbols, start_date="20250101_0101", end_date="20250724_010
 evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
 
 l_interface_trade = CInterfaceTrades.CInterfaceTrades(evaluator)
-algo = CTradingAlgo.CTradingAlgo(l_interface_trade, risk_per_trade_pct=1,strategy_name="RSI5min30")
+algo = CTradingAlgo.CTradingAlgo(evaluator, risk_per_trade_pct=1,strategy_name="RSI5min30")
 
 # Liste des symboles à analyser
 symbols = [
