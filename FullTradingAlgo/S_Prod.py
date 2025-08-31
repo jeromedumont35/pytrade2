@@ -6,6 +6,7 @@ import pandas as pd
 import CEvaluateROI
 from FullTradingAlgo.orders import COrders_Bitget
 
+#test
 
 def display_last_indicators_with_state(symbol_dfs: dict, original_cols: list, algo: CTradingAlgo):
     """
@@ -48,7 +49,7 @@ def align_df_to_new(df_sym: pd.DataFrame, df_new: pd.DataFrame) -> pd.DataFrame:
 symbols = ["SHIBUSDC", "SOLUSDC"]
 symbols = ["SHIBUSDC"]
 interval = "1m"
-days = 5
+days = 10
 
 # Création de l'évaluateur
 evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
