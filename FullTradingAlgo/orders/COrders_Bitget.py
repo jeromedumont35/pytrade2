@@ -59,22 +59,27 @@ class COrders_Bitget:
 
     # ===== Passer un ordre =====
     def open_position(self, symbol: str, side: str, usdt_amount: float, price=None):
+        """
+        Ouvre une position LONG ou SHORT avec Bitget en isolated et levier 1.
+        """
         side_map = {
-            "BUY_LONG": "buy",
-            "SELL_SHORT": "sell",
+            "BUY_LONG": {"side": "buy", "holdSide": "long"},
+            "SELL_SHORT": {"side": "sell", "holdSide": "short"},
         }
+
         if side not in side_map:
             raise ValueError(f"Type d'ordre non supporté : {side}")
 
-        order_side = side_map[side]
         order_type = "market" if price is None else "limit"
         symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+
+        # Conversion en quantité (base asset)
         amount = self._usdt_to_amount(symbol_ccxt, usdt_amount, price)
 
         params = {
             "reduceOnly": False,
-            "positionMode": "single",
-            "positionSide": "open",
+            "marginMode": "isolated",
+            "holdSide": side_map[side]["holdSide"],  # long ou short
         }
 
         # 🔹 Forcer levier et mode isolated avant l'ordre
@@ -84,10 +89,10 @@ class COrders_Bitget:
             order = self.client.create_order(
                 symbol=symbol_ccxt,
                 type=order_type,
-                side=order_side,
+                side=side_map[side]["side"],  # buy ou sell
                 amount=amount,
                 price=price if price else None,
-                params=params
+                params=params,
             )
             print(f"✅ Ordre placé: {order['id']} ({side} sur {symbol_ccxt}, levier=1)")
             return order
@@ -95,34 +100,38 @@ class COrders_Bitget:
             print(f"❌ Erreur lors de l'envoi de l'ordre {side} sur {symbol} : {e}")
             return None
 
-    # ===== Fermer une position =====
     def close_position(self, symbol: str, side: str, usdt_amount: float, price=None):
+        """
+        Ferme une position LONG ou SHORT sur Bitget en isolated.
+        """
         side_map = {
-            "BUY_LONG": "sell",
-            "SELL_SHORT": "buy",
+            "BUY_LONG": {"side": "sell", "holdSide": "long"},
+            "SELL_SHORT": {"side": "buy", "holdSide": "short"},
         }
+
         if side not in side_map:
             raise ValueError(f"Type d'ordre non supporté : {side}")
 
-        order_side = side_map[side]
         order_type = "market" if price is None else "limit"
         symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+
+        # Conversion en quantité (base asset)
         amount = self._usdt_to_amount(symbol_ccxt, usdt_amount, price)
 
         params = {
-            "reduceOnly": True,
-            "positionMode": "single",
-            "positionSide": "close",
+            "reduceOnly": True,  # indispensable pour fermer
+            "marginMode": "isolated",
+            "holdSide": side_map[side]["holdSide"],
         }
 
         try:
             order = self.client.create_order(
                 symbol=symbol_ccxt,
                 type=order_type,
-                side=order_side,
+                side=side_map[side]["side"],  # sell ou buy
                 amount=amount,
                 price=price if price else None,
-                params=params
+                params=params,
             )
             print(f"✅ Position fermée: {order['id']} (fermeture {side} sur {symbol_ccxt})")
             return order

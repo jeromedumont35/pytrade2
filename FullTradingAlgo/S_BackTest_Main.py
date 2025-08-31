@@ -1,3 +1,5 @@
+from matplotlib.transforms import BboxBase
+
 import CEvaluateROI
 import CInterfaceTrades
 import BinanceCandlePlotter
@@ -28,16 +30,19 @@ def load_symbol_data(symbols, start_date="20250101_0101", end_date="20250724_010
     return list_data
 
 # Création de l'évaluateur
-evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
+evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.001)
 
 l_interface_trade = CInterfaceTrades.CInterfaceTrades(evaluator)
 algo = CTradingAlgo.CTradingAlgo(evaluator, risk_per_trade_pct=1,strategy_name="RSI5min30")
 
 # Liste des symboles à analyser
 symbols = [
-    #"KAITOUSDC",
-    #"PENGUUSDC",  # tu peux en commenter certains
-    "SHIBUSDC",
+    "ADAUSDC",
+    "ATOMUSDC",
+    "DOTUSDC",
+    "KAITOUSDC",
+    "LINKUSDC",
+    "PENGUUSDC",  # tu peux en commenter certains
     "SOLUSDC",
     #"DOGEUSDC"
 ]

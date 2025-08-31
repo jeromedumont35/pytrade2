@@ -6,7 +6,32 @@ import pandas as pd
 import CEvaluateROI
 from FullTradingAlgo.orders import COrders_Bitget
 
-#test
+def lire_identifiants(filepath: str) -> dict:
+    """
+    Récupère les identifiants API (clé, secret, mot de passe) stockés
+    sur les 3 premières lignes d’un fichier texte.
+
+    :param filepath: chemin complet + nom du fichier
+    :return: dict avec {api_key, api_secret, password}
+    """
+    creds = {"api_key": None, "api_secret": None, "password": None}
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            lignes = f.readlines()
+
+        if len(lignes) < 3:
+            raise ValueError("⚠️ Le fichier doit contenir au moins 3 lignes.")
+
+        creds["api_key"] = lignes[0].strip()
+        creds["api_secret"] = lignes[1].strip()
+        creds["password"] = lignes[2].strip()
+
+    except FileNotFoundError:
+        print(f"❌ Fichier introuvable: {filepath}")
+    except Exception as e:
+        print(f"⚠️ Erreur: {e}")
+
+    return creds
 
 def display_last_indicators_with_state(symbol_dfs: dict, original_cols: list, algo: CTradingAlgo):
     """
@@ -47,19 +72,19 @@ def align_df_to_new(df_sym: pd.DataFrame, df_new: pd.DataFrame) -> pd.DataFrame:
 
 # === PARAMÈTRES ===
 symbols = ["SHIBUSDC", "SOLUSDC"]
-symbols = ["SHIBUSDC"]
+symbols = ["SOLUSDC"]
 interval = "1m"
 days = 10
 
 # Création de l'évaluateur
 evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
-
-
+identifiants = lire_identifiants("../../Bitget_jdu.key")
+print(identifiants)
+trader = COrders_Bitget.COrders_Bitget(identifiants["api_key"], identifiants["api_secret"], identifiants["password"])
 
 # === INITIALISATION ===
 fetcher = CBinanceDataFetcher.BinanceDataFetcher()
-interface_trade = None  # ⚡ Remplacer par ton interface trade réelle
-algo = CTradingAlgo.CTradingAlgo(l_interface_trade=evaluator, strategy_name="RSI5min30")
+algo = CTradingAlgo.CTradingAlgo(l_interface_trade=trader, risk_per_trade_pct=0.2, strategy_name="RSI5min30")
 
 # === 1. Téléchargement et simulation historique ===
 print("📥 Téléchargement de l’historique...")
