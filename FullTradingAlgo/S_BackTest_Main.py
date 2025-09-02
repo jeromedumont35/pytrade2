@@ -2,7 +2,7 @@ from matplotlib.transforms import BboxBase
 
 import CEvaluateROI
 import CInterfaceTrades
-import BinanceCandlePlotter
+#import BinanceCandlePlotter
 import CTradingAlgo
 import pandas as pd
 
@@ -43,12 +43,14 @@ symbols = [
     "KAITOUSDC",
     "LINKUSDC",
     "PENGUUSDC",  # tu peux en commenter certains
-    "SOLUSDC",
-    #"DOGEUSDC"
+    "SOLUSDC"
 ]
 
-#symbols = [
-#    "KAITOUSDC"]
+symbols = [
+    "ATOMUSDC",
+    "PENGUUSDC",  # tu peux en commenter certains
+    "SOLUSDC"
+]
 
 list_data = load_symbol_data(symbols)
 
@@ -57,14 +59,4 @@ algo.run(list_data,execution=False)
 
 evaluator.print_summary()
 evaluator.plot_combined()
-
-plotter = BinanceCandlePlotter.BinanceCandlePlotter(symbol="KAITOUSDC")
-
-df_virtual = None
-for df, sym in list_data:
-    if sym == "KAITOUSDC":
-        df_virtual = df
-        break
-
-plotter.plot(df_virtual, evaluator=evaluator)
 

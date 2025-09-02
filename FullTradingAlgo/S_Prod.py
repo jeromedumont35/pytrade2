@@ -4,7 +4,19 @@ from FullTradingAlgo.downloader import CBinanceDataFetcher
 import CTradingAlgo
 import pandas as pd
 import CEvaluateROI
+import requests
 from FullTradingAlgo.orders import COrders_Bitget
+
+def test_internet_connection(timeout=3):
+    """
+    Teste si on est connecté à Internet.
+    Retourne True si OK, False sinon.
+    """
+    try:
+        requests.get("https://www.google.com", timeout=timeout)
+        return True
+    except requests.RequestException:
+        return False
 
 def lire_identifiants(filepath: str) -> dict:
     """
@@ -110,7 +122,13 @@ while True:
 
     if now.second == 0:
         print(f"\n⏰ Nouvelle minute détectée : {now}")
-        time.sleep(5)  # Laisser Binance publier la bougie
+        time.sleep(3)  # Laisser Binance publier la bougie
+
+        # Vérification connexion Internet
+        if not test_internet_connection():
+            print("⚠️ Pas de connexion Internet. Nouvelle tentative dans 5 secondes...")
+            time.sleep(5)
+            continue
 
         # Récupération dernière bougie complète
         df_last = fetcher.get_last_complete_kline(symbols, interval=interval)

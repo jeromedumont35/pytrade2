@@ -8,7 +8,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../indi
 
 import CRSICalculator
 import CTransformToPanda
-import CPeaksDetector
 import CIndicatorsBTCAdder
 
 
