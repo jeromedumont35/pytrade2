@@ -87,6 +87,7 @@ symbols = ["SHIBUSDC", "SOLUSDC"]
 symbols = ["SOLUSDC"]
 interval = "1m"
 days = 10
+MAX_RETRY = 5  # Nombre max de tentatives avant d'abandonner
 
 # Création de l'évaluateur
 evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
@@ -120,15 +121,18 @@ print("🔄 Passage en mode production (temps réel)...")
 while True:
     now = datetime.now(timezone.utc)
 
+    if now.second == 56:
+        if not test_internet_connection(3):
+            print("❌ Pas de connexion Internet. On quitte")
+            break;
+        else:
+            print(f"✅ Connexion Internet OK. Heure UTC: {now}")
+
     if now.second == 0:
         print(f"\n⏰ Nouvelle minute détectée : {now}")
         time.sleep(3)  # Laisser Binance publier la bougie
 
-        # Vérification connexion Internet
-        if not test_internet_connection():
-            print("⚠️ Pas de connexion Internet. Nouvelle tentative dans 5 secondes...")
-            time.sleep(5)
-            continue
+
 
         # Récupération dernière bougie complète
         df_last = fetcher.get_last_complete_kline(symbols, interval=interval)
@@ -201,7 +205,6 @@ while True:
 
         display_last_indicators_with_state(symbol_dfs, original_cols,algo)
 
-        time.sleep(1)
 
     time.sleep(0.5)
 

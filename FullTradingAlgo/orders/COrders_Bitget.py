@@ -100,26 +100,34 @@ class COrders_Bitget:
             print(f"❌ Erreur lors de l'envoi de l'ordre {side} sur {symbol} : {e}")
             return None
 
-    def close_position(self, symbol: str, side: str, usdt_amount: float, price=None):
+    def close_position(self, symbol: str, side: str, price=None):
         """
-        Ferme une position LONG ou SHORT sur Bitget en isolated.
+        Ferme complètement une position LONG ou SHORT.
         """
+        # Mapper les actions de clôture
         side_map = {
-            "BUY_LONG": {"side": "sell", "holdSide": "long"},
-            "SELL_SHORT": {"side": "buy", "holdSide": "short"},
+            "SELL_LONG": {"side": "sell", "holdSide": "long"},
+            "BUY_SHORT": {"side": "buy", "holdSide": "short"},
         }
 
         if side not in side_map:
-            raise ValueError(f"Type d'ordre non supporté : {side}")
+            raise ValueError(f"Type d'ordre non supporté pour fermeture : {side}")
 
-        order_type = "market" if price is None else "limit"
         symbol_ccxt = self.convert_symbol_to_usdt(symbol)
 
-        # Conversion en quantité (base asset)
-        amount = self._usdt_to_amount(symbol_ccxt, usdt_amount, price)
+        # 🔎 Récupérer la position ouverte
+        positions = self.client.fetch_positions([symbol_ccxt])
+        position = next((p for p in positions if float(p["contracts"]) > 0), None)
+
+        if not position:
+            print(f"⚠️ Aucune position ouverte trouvée pour {symbol_ccxt}")
+            return None
+
+        # Quantité exacte à fermer
+        amount = float(position["contracts"])
 
         params = {
-            "reduceOnly": True,  # indispensable pour fermer
+            "reduceOnly": True,
             "marginMode": "isolated",
             "holdSide": side_map[side]["holdSide"],
         }
@@ -127,13 +135,13 @@ class COrders_Bitget:
         try:
             order = self.client.create_order(
                 symbol=symbol_ccxt,
-                type=order_type,
-                side=side_map[side]["side"],  # sell ou buy
+                type="market",
+                side=side_map[side]["side"],
                 amount=amount,
                 price=price if price else None,
                 params=params,
             )
-            print(f"✅ Position fermée: {order['id']} (fermeture {side} sur {symbol_ccxt})")
+            print(f"✅ Position entièrement fermée: {order['id']} ({side} sur {symbol_ccxt})")
             return order
         except Exception as e:
             print(f"❌ Erreur lors de la fermeture {side} sur {symbol} : {e}")
@@ -183,12 +191,12 @@ class COrders_Bitget:
                     "asset": asset,
                 })
         elif side in ["SELL_LONG", "BUY_SHORT"]:
-            if not self.positions:
-                return
-            entry = self.positions.pop()
-            usdc = entry["usdc"]
+            #if not self.positions:
+            #    return
+            #entry = self.positions.pop()
+            usdc = 0 #entry["usdc"]
             l_order = self.close_position(asset, side, usdc)
             if l_order and l_order.get("status") in ["closed", "filled"]:
                 print("✅ Position fermée immédiatement.")
-            else:
-                self.positions.append(entry)
+            #else:
+                #self.positions.append(entry)

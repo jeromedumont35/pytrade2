@@ -1,4 +1,4 @@
-import requests
+import requests, time
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 
@@ -30,10 +30,11 @@ class BinanceDataFetcher:
 
         return df[["open", "high", "low", "close", "volume", "moy_l_h_e_c"]]
 
-    def _fetch_klines(self, symbol, interval, start_time, end_time):
+    def _fetch_klines(self, symbol, interval, start_time, end_time, max_retries=3):
         """
         Télécharge toutes les bougies pour un symbole entre start_time et end_time
         en gérant la limite API Binance (1000 bougies max par requête).
+        Avec timeout et retry automatique.
         """
         url = self.BASE_URL
         limit = 1000
@@ -51,8 +52,21 @@ class BinanceDataFetcher:
                 "limit": limit,
             }
 
-            response = requests.get(url, params=params)
-            data = response.json()
+            success = False
+            for attempt in range(max_retries):
+                try:
+                    response = requests.get(url, params=params, timeout=(3, 5))
+                    response.raise_for_status()
+                    data = response.json()
+                    success = True
+                    break
+                except requests.exceptions.RequestException as e:
+                    print(f"[{symbol}] Erreur réseau : {e} (tentative {attempt + 1}/{max_retries})")
+                    time.sleep(2)  # petite pause avant retry
+
+            if not success:
+                print(f"[{symbol}] Échec après {max_retries} tentatives → arrêt du fetch.")
+                return None  # ou `break` si tu veux juste ignorer ce symbole
 
             if not isinstance(data, list):
                 raise Exception(f"Erreur API Binance : {data}")
@@ -96,7 +110,7 @@ class BinanceDataFetcher:
         """
         # Dernière minute complète
         end_time = (datetime.now(timezone.utc) - timedelta(minutes=1)).replace(second=0, microsecond=0)
-        start_time = end_time - timedelta(minutes=5)  # marge de sécurité
+        start_time = end_time - timedelta(minutes=3)  # marge de sécurité
 
         all_dfs = []
         for sym in symbols:
