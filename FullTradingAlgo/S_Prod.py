@@ -1,11 +1,11 @@
 import time
 from datetime import datetime, timedelta, timezone
-from FullTradingAlgo.downloader import CBinanceDataFetcher
+from downloader import CBinanceDataFetcher
 import CTradingAlgo
 import pandas as pd
 import CEvaluateROI
 import requests
-from FullTradingAlgo.orders import COrders_Bitget
+from orders import COrders_Bitget
 
 def test_internet_connection(timeout=3):
     """
