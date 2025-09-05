@@ -55,8 +55,6 @@ class CTradingAlgo:
             if execution and i == total_ticks - 1:
                 blocked = False
 
-            blocked = False
-
             for _, row in group.iterrows():
                 symbol = row["symbol"]
                 df = self.symbol_dfs[symbol]

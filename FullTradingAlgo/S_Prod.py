@@ -83,8 +83,12 @@ def align_df_to_new(df_sym: pd.DataFrame, df_new: pd.DataFrame) -> pd.DataFrame:
     return df_sym[common_cols]
 
 # === PARAMÈTRES ===
-symbols = ["SHIBUSDC", "SOLUSDC"]
-symbols = ["SOLUSDC"]
+symbols = [
+    "ATOMUSDC",
+    "PENGUUSDC",  # tu peux en commenter certains
+    "SOLUSDC"
+]
+
 interval = "1m"
 days = 10
 MAX_RETRY = 5  # Nombre max de tentatives avant d'abandonner
