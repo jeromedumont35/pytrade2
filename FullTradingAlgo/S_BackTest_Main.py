@@ -1,3 +1,4 @@
+import argparse
 from matplotlib.transforms import BboxBase
 
 import CEvaluateROI
@@ -6,7 +7,7 @@ import CInterfaceTrades
 import CTradingAlgo
 import pandas as pd
 
-def load_symbol_data(symbols, start_date="20250101_0101", end_date="20250724_0101", folder="panda"):
+def load_symbol_data(filename, symbols, start_date="20250101_0101", end_date="20250724_0101", folder="panda"):
     """
     Charge automatiquement les DataFrames .panda pour une liste de symboles.
 
@@ -21,7 +22,6 @@ def load_symbol_data(symbols, start_date="20250101_0101", end_date="20250724_010
     """
     list_data = []
     for sym in symbols:
-        filename = f"{folder}/{sym}_{start_date}_{end_date}.panda"
         try:
             df = pd.read_pickle(filename)
             list_data.append((df, sym))
@@ -29,34 +29,40 @@ def load_symbol_data(symbols, start_date="20250101_0101", end_date="20250724_010
             print(f"⚠️ Fichier introuvable : {filename}")
     return list_data
 
-# Création de l'évaluateur
-evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.001)
 
-l_interface_trade = CInterfaceTrades.CInterfaceTrades(evaluator)
-algo = CTradingAlgo.CTradingAlgo(evaluator, risk_per_trade_pct=1,strategy_name="RSI5min30")
+if __name__ == "__main__":
+    # Parses arugments
+    parser = argparse.ArgumentParser(description="Backtest.")
+    parser.add_argument("file", type=str, help="Pickle file")
+    args = parser.parse_args()
 
-# Liste des symboles à analyser
-symbols = [
-    "ADAUSDC",
-    "ATOMUSDC",
-    "DOTUSDC",
-    "KAITOUSDC",
-    "LINKUSDC",
-    "PENGUUSDC",  # tu peux en commenter certains
-    "SOLUSDC"
-]
+    # Création de l'évaluateur
+    evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.001)
 
-symbols = [
-    "ATOMUSDC",
-    "PENGUUSDC",  # tu peux en commenter certains
-    "SOLUSDC"
-]
+    l_interface_trade = CInterfaceTrades.CInterfaceTrades(evaluator)
+    algo = CTradingAlgo.CTradingAlgo(evaluator, risk_per_trade_pct=1,strategy_name="RSI5min30")
 
-list_data = load_symbol_data(symbols)
+    # Liste des symboles à analyser
+    symbols = [
+        "ADAUSDC",
+        "ATOMUSDC",
+        "DOTUSDC",
+        "KAITOUSDC",
+        "LINKUSDC",
+        "PENGUUSDC",  # tu peux en commenter certains
+        "SOLUSDC"
+    ]
 
-# Lancement de l'algo
-algo.run(list_data,execution=False)
+    symbols = [
+        "ATOMUSDC",
+        "PENGUUSDC",  # tu peux en commenter certains
+        "SOLUSDC"
+    ]
 
-evaluator.print_summary()
-evaluator.plot_combined()
+    list_data = load_symbol_data(args.file, symbols)
 
+    # Lancement de l'algo
+    algo.run(list_data,execution=False)
+
+    evaluator.print_summary()
+    evaluator.plot_combined()
