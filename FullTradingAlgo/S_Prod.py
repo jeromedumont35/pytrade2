@@ -1,4 +1,5 @@
 import time
+import argparse
 from datetime import datetime, timedelta, timezone
 from downloader import CBinanceDataFetcher
 import CTradingAlgo
@@ -94,9 +95,14 @@ def main():
     days = 10
     MAX_RETRY = 5  # Nombre max de tentatives avant d'abandonner
 
+    # Parses arugments
+    parser = argparse.ArgumentParser(description="Pytrade.")
+    parser.add_argument("api_key", type=str, help="API key file")
+    args = parser.parse_args()
+
     # Création de l'évaluateur
     evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
-    identifiants = lire_identifiants("../../Bitget_jdu.key")
+    identifiants = lire_identifiants(args.api_key)
     print(identifiants)
     trader = COrders_Bitget.COrders_Bitget(identifiants["api_key"], identifiants["api_secret"], identifiants["password"])
 
