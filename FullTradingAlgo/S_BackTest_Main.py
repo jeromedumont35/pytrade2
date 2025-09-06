@@ -1,62 +1,53 @@
+import os
+import sys
+import argparse
+import traceback
 from matplotlib.transforms import BboxBase
+import pandas as pd
 
 import CEvaluateROI
 import CInterfaceTrades
-#import BinanceCandlePlotter
 import CTradingAlgo
-import pandas as pd
+from strategies.CStrat_RSI5min30 import CStrat_RSI5min30
 
-def load_symbol_data(symbols, start_date="20250101_0101", end_date="20250724_0101", folder="panda"):
-    """
-    Charge automatiquement les DataFrames .panda pour une liste de symboles.
 
-    Args:
-        symbols (list): Liste des symboles (ex: ["BTCUSDC", "ETHUSDC"])
-        start_date (str): Date de début au format AAAAMMJJ_HHMM
-        end_date (str): Date de fin au format AAAAMMJJ_HHMM
-        folder (str): Dossier contenant les fichiers .panda
+def main():
+    # Parses arugments
+    parser = argparse.ArgumentParser(description="Backtest.")
+    parser.add_argument("file_list", nargs="+", type=str, help="Csv files")
+    args = parser.parse_args()
 
-    Returns:
-        list: Liste de tuples (DataFrame, symbole)
-    """
+    # Création de l'évaluateur
+    evaluator = CEvaluateROI.CEvaluateROI(1000, trading_fee_rate=0.001)
+
+    l_interface_trade = CInterfaceTrades.CInterfaceTrades(evaluator)
+    algo = CTradingAlgo.CTradingAlgo(evaluator, risk_per_trade_pct=1, strategy_name="RSI5min30")
+
+    # Load data from input files
     list_data = []
-    for sym in symbols:
-        filename = f"{folder}/{sym}_{start_date}_{end_date}.panda"
-        try:
-            df = pd.read_pickle(filename)
-            list_data.append((df, sym))
-        except FileNotFoundError:
-            print(f"⚠️ Fichier introuvable : {filename}")
-    return list_data
+    for filename in args.file_list:
+        symbol = os.path.basename(filename).split("_")[0]
+        df = pd.read_csv(filename)
+        list_data.append((df, symbol))
 
-# Création de l'évaluateur
-evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.001)
+    # Lancement de l'algo
+    algo.run(list_data, execution=False)
 
-l_interface_trade = CInterfaceTrades.CInterfaceTrades(evaluator)
-algo = CTradingAlgo.CTradingAlgo(evaluator, risk_per_trade_pct=1,strategy_name="RSI5min30")
+    evaluator.print_summary()
+    evaluator.plot_combined()
 
-# Liste des symboles à analyser
-symbols = [
-    "ADAUSDC",
-    "ATOMUSDC",
-    "DOTUSDC",
-    "KAITOUSDC",
-    "LINKUSDC",
-    "PENGUUSDC",  # tu peux en commenter certains
-    "SOLUSDC"
-]
 
-symbols = [
-    "ATOMUSDC",
-    "PENGUUSDC",  # tu peux en commenter certains
-    "SOLUSDC"
-]
-
-list_data = load_symbol_data(symbols)
-
-# Lancement de l'algo
-algo.run(list_data,execution=False)
-
-evaluator.print_summary()
-evaluator.plot_combined()
-
+if __name__ == "__main__":
+    try:
+        main() 
+    # Catch critical exceptions
+    except FileNotFoundError as e:
+        traceback.print_exc()
+        print(e)
+        # print(f"⚠️ Fichier introuvable : {filename}")
+        sys.exit(1)
+    except Exception as e:
+        traceback.print_exc()
+        print(e)
+        print("Exception")
+        sys.exit(1)
