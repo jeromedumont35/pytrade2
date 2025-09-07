@@ -32,6 +32,9 @@ class CStrat_RSI5min30:
         self.transformer = CTransformToPanda.CTransformToPanda(raw_dir="../raw", panda_dir="../panda")
         self.state = {}  # symbol → dict état
 
+    def get_main_indicator(self):
+        return ["rsi_5m_14_P2", "rsi_4h_14_P2"]
+
     def _init_symbol_state(self, symbol):
         if symbol not in self.state:
             self.state[symbol] = {
@@ -243,34 +246,23 @@ class CStrat_RSI5min30:
         if not isinstance(df.index, pd.DatetimeIndex):
             raise ValueError("Le DataFrame doit avoir un index temporel (datetime).")
 
-        # 🔹 Nettoyage des anciennes colonnes RSI pour éviter KeyError
-        rsi_cols_to_remove = [col for col in df.columns if col.startswith("avg_gain") or
-                              col.startswith("avg_loss") or
-                              col.startswith("rsi_4h_14") or
-                              col.startswith("rsi_5m_14")]
-        df = df.drop(columns=rsi_cols_to_remove, errors=True)
-
         # RSI 4h
         df = CRSICalculator.CRSICalculator(
             df, period=14,
             close_times=[(h, m) for h in range(0, 24, 4) for m in [0]],
-            name="rsi_4h_14"
+            name="rsi_4h_14_P2"
         ).get_df()
 
         # RSI 5m
         close_times_5m = [(h, m) for h in range(24) for m in range(0, 60, 5)]
         df = CRSICalculator.CRSICalculator(
-            df, period=14, close_times=close_times_5m, name="rsi_5m_14"
+            df, period=14, close_times=close_times_5m, name="rsi_5m_14_P2"
         ).get_df()
 
         # df = CPeaksDetector.CPeaksDetector(df, atr_period=1000, factor=0.7, distance=30,
         #          max_col="peak_max_v_m_P1", min_col="peak_min_^_y_P1").get_df()
 
         # 🔹 Renommage colonnes pour la stratégie
-        df = df.rename(columns={
-            "rsi_4h_14": "rsi_4h_14_P2",
-            "rsi_5m_14": "rsi_5m_14_P2"
-        })
         df["close__b_P1"] = df["close"]
 
         return df

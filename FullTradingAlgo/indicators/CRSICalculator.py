@@ -1,77 +1,75 @@
 import pandas as pd
 
 class CRSICalculator:
-    def __init__(self, df, period=14, close_times=[(3, 59), (7, 59), (11, 59), (15, 59), (19, 59), (23, 59)], name="rsi"):
+    def __init__(self, df, period=14,
+                 close_times=[(3,59),(7,59),(11,59),(15,59),(19,59),(23,59)],
+                 name="rsi"):
         self.df = df.copy()
         self.period = period
-        self.close_times = close_times  # List of (hour, minute)
+        self.close_times = close_times
         self.name = name
-        self._compute_rsi()
 
-    def _compute_rsi(self):
+        self._check_and_compute()
+
+    def _check_and_compute(self):
         df = self.df
+        gain_col = f'avg_gain_{self.name}'
+        loss_col = f'avg_loss_{self.name}'
 
-        # print(df.index.is_monotonic_increasing)
-        # # Affiche la fréquence estimée
-        # print(df.index.inferred_freq)
-        #
-        # # Vérifie directement que toutes les différences == 1 minute
-        # all_steps_1min = (df.index.to_series().diff().dropna() == pd.Timedelta(minutes=1)).all()
-        # print("Tous les pas sont de 1 minute :", all_steps_1min)
+        # Cas 1 : colonnes manquantes → recalcul complet
+        if self.name not in df.columns or gain_col not in df.columns or loss_col not in df.columns:
+            self._compute_full()
+            return
 
+        # Cas 2 : dernière ligne à compléter (même hors close_time)
+        last_row = df.iloc[-1]
+        if pd.isna(last_row[gain_col]) or pd.isna(last_row[loss_col]) or pd.isna(last_row[self.name]):
+            self._update_last()
+            return
+
+        # Cas 3 : tout est complet → rien à faire
+        self.df = df
+
+    def _compute_full(self):
+        """Recalcul complet du RSI aux close_times + interpolation minute par minute"""
+        df = self.df
         period = self.period
         alpha = 1 / period
 
-        # 1. Marquer les timestamps correspondant aux clôtures voulues
-        df['is_custom_close'] = df.index.map(
-            lambda x: (x.hour, x.minute) in self.close_times
-        )
-
-        # 2. Extraire les closes aux bons moments
+        # Marquage des close_times
+        df['is_custom_close'] = df.index.map(lambda x: (x.hour, x.minute) in self.close_times)
         df_close = df[df['is_custom_close']].copy()
-        # nb_nan = df_close['close'].isna().sum()
-        # last_value = df_close['close'].iloc[-1]
-        # prev_value = df_close['close'].iloc[-2]
-        #
-        # print("Nombre de NaN :", nb_nan)
-        # print("Dernière valeur :", last_value)
-        # print("Dernière valeur :", prev_value)
 
+        # Différences entre closes
         df_close['delta'] = df_close['close'].diff()
-        df_close['gain'] = df_close['delta'].apply(lambda x: max(x, 0))
-        df_close['loss'] = df_close['delta'].apply(lambda x: max(-x, 0))
+        df_close['gain'] = df_close['delta'].clip(lower=0)
+        df_close['loss'] = -df_close['delta'].clip(upper=0)
 
-        # 3. Moyenne EMA
-        df_close[f'avg_gain_{self.name}'] = df_close['gain'].ewm(alpha=alpha, min_periods=period).mean()
-        df_close[f'avg_loss_{self.name}'] = df_close['loss'].ewm(alpha=alpha, min_periods=period).mean()
+        gain_col = f'avg_gain_{self.name}'
+        loss_col = f'avg_loss_{self.name}'
 
-        # nb_nan = df_close[f'avg_gain_{self.name}'].isna().sum()
-        # print("Nombre de NaN :", nb_nan)
+        # EMA de Wilder
+        df_close[gain_col] = df_close['gain'].ewm(alpha=alpha, min_periods=period).mean()
+        df_close[loss_col] = df_close['loss'].ewm(alpha=alpha, min_periods=period).mean()
 
-        # 4. Calcul du RSI sur ces points
+        # RSI aux close_times
         def compute_rsi(gain, loss):
+            if pd.isna(gain) or pd.isna(loss):
+                return None
             if loss == 0:
                 return 100
             rs = gain / loss
             return 100 - (100 / (1 + rs))
 
         df_close[self.name] = df_close.apply(
-            lambda row: compute_rsi(row[f'avg_gain_{self.name}'], row[f'avg_loss_{self.name}']), axis=1
+            lambda row: compute_rsi(row[gain_col], row[loss_col]), axis=1
         )
 
-        # 5. Fusion avec df original
-        df = df.merge(
-            df_close[[f'avg_gain_{self.name}', f'avg_loss_{self.name}', self.name]],
-            how='left',
-            left_index=True,
-            right_index=True
-        )
+        # Fusion avec le df original
+        df = df.merge(df_close[[gain_col, loss_col, self.name]],
+                      how="left", left_index=True, right_index=True)
 
-        # 6. Interpolation minute par minute avec trace NaN
-        gain_filled = []
-        loss_filled = []
-        rsi_filled = []
-
+        # --- Interpolation minute par minute ---
         last_idx = None
         next_idx = None
         last_gain = None
@@ -79,86 +77,70 @@ class CRSICalculator:
         last_price = None
 
         for idx in df.index:
-            gain = df.at[idx, f'avg_gain_{self.name}']
-            loss = df.at[idx, f'avg_loss_{self.name}']
+            gain = df.at[idx, gain_col]
+            loss = df.at[idx, loss_col]
 
             if pd.notna(gain) and pd.notna(loss):
+                # Point de référence (close_time)
                 last_gain = gain
                 last_loss = loss
                 last_idx = idx
                 last_price = df.at[idx, 'close']
                 rsi = df.at[idx, self.name]
             elif last_idx is not None:
+                # Points intermédiaires
                 if next_idx is None or idx >= next_idx:
-                    future = df.loc[idx:].dropna(subset=[f'avg_gain_{self.name}'])
-                    if not future.empty:
-                        next_idx = future.index[0]
-                    else:
-                        next_idx = None
+                    future = df.loc[idx:].dropna(subset=[gain_col])
+                    next_idx = future.index[0] if not future.empty else None
 
-                if next_idx is not None:
-                    total_steps = (next_idx - last_idx).total_seconds() / 60
-                    cur_steps = (idx - last_idx).total_seconds() / 60
+                close_cur = df.at[idx, 'close']
+                delta = close_cur - last_price
+                gain_cur = max(delta, 0)
+                loss_cur = max(-delta, 0)
 
-                    weight_cur = cur_steps / total_steps
-                    weight_last = 1 - weight_cur
+                gain_avg = (1 - alpha) * last_gain + alpha * gain_cur
+                loss_avg = (1 - alpha) * last_loss + alpha * loss_cur
 
-                    close_cur = df.at[idx, 'close']
-                    delta = close_cur - last_price
-                    gain_cur = max(delta, 0)
-                    loss_cur = max(-delta, 0)
+                rsi = 100 - (100 / (1 + gain_avg / loss_avg)) if loss_avg != 0 else 100
 
-                    gain_avg = (1 - alpha) * last_gain + alpha * gain_cur
-                    loss_avg = (1 - alpha) * last_loss + alpha * loss_cur
+                df.at[idx, gain_col] = gain_avg
+                df.at[idx, loss_col] = loss_avg
+                df.at[idx, self.name] = rsi
 
-                    rsi = 100 - (100 / (1 + gain_avg / loss_avg)) if loss_avg != 0 else 100
-                else:
-                    close_cur = df.at[idx, 'close']
-                    delta = close_cur - last_price
-                    gain_cur = max(delta, 0)
-                    loss_cur = max(-delta, 0)
+        self.df = df.drop(columns=['is_custom_close','delta','gain','loss'], errors='ignore')
 
-                    gain_avg = (1 - alpha) * last_gain + alpha * gain_cur
-                    loss_avg = (1 - alpha) * last_loss + alpha * loss_cur
+    def _update_last(self):
+        """Met à jour la dernière bougie (même hors close_time)"""
+        df = self.df
+        period = self.period
+        alpha = 1 / period
 
-                    rsi = 100 - (100 / (1 + gain_avg / loss_avg)) if loss_avg != 0 else 100
-            else:
-                rsi = None
+        gain_col = f'avg_gain_{self.name}'
+        loss_col = f'avg_loss_{self.name}'
 
-            gain_filled.append(last_gain if last_gain is not None else None)
-            loss_filled.append(last_loss if last_loss is not None else None)
-            rsi_filled.append(rsi)
+        # Récupère la dernière ligne qui avait un RSI valide
+        prev_row = df.dropna(subset=[gain_col, loss_col, self.name]).iloc[-1]
+        last_row = df.iloc[-1]
 
-        df[self.name] = rsi_filled
-        
-        # nb_nan = df[self.name].isna().sum()
-        # last_value = df[self.name].iloc[-1]
-        # prev_value = df[self.name].iloc[-2]
-        #
-        # print("Nombre de NaN :", nb_nan)
-        # print("Dernière valeur :", last_value)
-        # print("Dernière valeur :", prev_value)
-        #
-        # col = df[self.name]
-        #
-        # # Série booléenne : True si NaN
-        # mask = col.isna()
-        #
-        # # Détecter les changements (NaN ↔ non-NaN)
-        # groups = (mask != mask.shift()).cumsum()
-        #
-        # nan_ranges = []
-        # for _, grp in col[mask].groupby(groups):
-        #     start_idx = grp.index[0]
-        #     end_idx = grp.index[-1]
-        #     nan_ranges.append((start_idx, end_idx))
-        #
-        # print("Séries de NaN (début, fin) :")
-        # for start, end in nan_ranges:
-        #     print(start, "→", end)
+        delta = last_row['close'] - prev_row['close']
+        gain = max(delta, 0)
+        loss = max(-delta, 0)
 
+        new_avg_gain = (1 - alpha) * prev_row[gain_col] + alpha * gain
+        new_avg_loss = (1 - alpha) * prev_row[loss_col] + alpha * loss
 
-        self.df = df.drop(columns=['is_custom_close'])
+        if new_avg_loss == 0:
+            new_rsi = 100
+        else:
+            rs = new_avg_gain / new_avg_loss
+            new_rsi = 100 - (100 / (1 + rs))
+
+        # Mise à jour
+        df.at[df.index[-1], gain_col] = new_avg_gain
+        df.at[df.index[-1], loss_col] = new_avg_loss
+        df.at[df.index[-1], self.name] = new_rsi
+
+        self.df = df
 
     def get_df(self):
         return self.df

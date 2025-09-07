@@ -45,26 +45,24 @@ def lire_identifiants(filepath: str) -> dict:
 
     return creds
 
-def display_last_indicators_with_state(symbol_dfs: dict, original_cols: list, algo: CTradingAlgo):
+def display_last_indicators_with_state(symbol_dfs: dict, algo: CTradingAlgo):
     """
     Affiche un tableau des dernières valeurs d'indicateurs pour chaque symbole,
     avec la colonne 'State' après le symbole.
     Ne montre que les colonnes qui contiennent au moins une valeur non-NaN.
     """
     # Récupère l'état courant de chaque symbole depuis la stratégie
-    states = algo.get_symbol_states()
+    states = algo.strategy.get_symbol_states()
 
     rows = []
     for sym, df in symbol_dfs.items():
         last_row = df.tail(1)
-        # Colonnes ajoutées par apply_indicators
-        new_cols = [c for c in df.columns if c not in original_cols]
 
         # Ne garder que les colonnes avec au moins une valeur non-NaN
-        filtered_cols = [col for col in new_cols if not last_row[col].isna().all()]
-
+        #filtered_cols = [col for col in new_cols if not last_row[col].isna().all()]
+        displayed_cols = algo.strategy.get_main_indicator()
         row_data = {"Symbol": sym, "State": states.get(sym, "UNKNOWN")}
-        for col in filtered_cols:
+        for col in displayed_cols:
             row_data[col] = last_row.iloc[0][col]
         rows.append(row_data)
 
@@ -72,7 +70,18 @@ def display_last_indicators_with_state(symbol_dfs: dict, original_cols: list, al
     print("\n📊 Dernière bougie avec indicateurs appliqués et état :")
     print(df_display.to_string(index=False))
 
+def extend_df_with_sym(df_sym: pd.DataFrame, df_new: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ajoute dans df_new les colonnes présentes dans df_sym mais absentes dans df_new.
+    Les nouvelles colonnes sont créées et remplies avec NaN.
+    Retourne un DataFrame élargi qui contient toutes les colonnes de df_new + manquantes.
+    """
+    missing_cols = [c for c in df_sym.columns if c not in df_new.columns]
 
+    for col in missing_cols:
+        df_new[col] = pd.NA  # ou np.nan si tu préfères
+
+    return df_new
 
 def align_df_to_new(df_sym: pd.DataFrame, df_new: pd.DataFrame) -> pd.DataFrame:
     """
@@ -84,24 +93,21 @@ def align_df_to_new(df_sym: pd.DataFrame, df_new: pd.DataFrame) -> pd.DataFrame:
 
 # === PARAMÈTRES ===
 symbols = [
-    "ATOMUSDC",
-    "PENGUUSDC",  # tu peux en commenter certains
-    "SOLUSDC"
+    "SOLUSDC","ATOMUSDC","PENGUUSDC"
 ]
 
 interval = "1m"
-days = 10
-MAX_RETRY = 5  # Nombre max de tentatives avant d'abandonner
+days = 5
 
 # Création de l'évaluateur
 evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
 identifiants = lire_identifiants("../../Bitget_jdu.key")
 print(identifiants)
-trader = COrders_Bitget.COrders_Bitget(identifiants["api_key"], identifiants["api_secret"], identifiants["password"])
+#trader = COrders_Bitget.COrders_Bitget(identifiants["api_key"], identifiants["api_secret"], identifiants["password"])
 
 # === INITIALISATION ===
 fetcher = CBinanceDataFetcher.BinanceDataFetcher()
-algo = CTradingAlgo.CTradingAlgo(l_interface_trade=trader, risk_per_trade_pct=0.2, strategy_name="RSI5min30")
+algo = CTradingAlgo.CTradingAlgo(l_interface_trade=evaluator, risk_per_trade_pct=0.2, strategy_name="RSI5min30")
 
 # === 1. Téléchargement et simulation historique ===
 print("📥 Téléchargement de l’historique...")
@@ -136,8 +142,6 @@ while True:
         print(f"\n⏰ Nouvelle minute détectée : {now}")
         time.sleep(3)  # Laisser Binance publier la bougie
 
-
-
         # Récupération dernière bougie complète
         df_last = fetcher.get_last_complete_kline(symbols, interval=interval)
 
@@ -155,7 +159,8 @@ while True:
             df_new = df_last[df_last["symbol"] == sym].drop(columns=["symbol"])
 
             # Aligner df_sym sur les colonnes de df_new
-            df_sym = align_df_to_new(df_sym, df_new)
+            #df_sym = align_df_to_new(df_sym, df_new)
+            df_new = extend_df_with_sym(df_sym, df_new)
 
             # ======= DETECTION ET COMBLEMENT DES GAPS =======
             # Vérifie s'il y a un gap entre la dernière bougie DF et df_new
@@ -173,14 +178,6 @@ while True:
                         missing_row = df_sym.iloc[[-1]].copy()
                         missing_row.index = [missing_time]
                         df_sym = pd.concat([df_sym, missing_row])
-
-            # print("\n=== DEBUG DATES ===")
-            # print(f"Symbole: {sym}")
-            # print("Index df_sym avant concat:")
-            # print(df_sym.index[-5:])  # les 5 dernières dates
-            #
-            # print("Index df_new:")
-            # print(df_new.index)
 
             # Vérifie si des doublons existent déjà dans df_sym
             dups = df_sym.index[df_sym.index.duplicated()]
@@ -207,7 +204,7 @@ while True:
         # Exécution algo uniquement sur la dernière bougie
         algo.run(list_data_last, execution=True)
 
-        display_last_indicators_with_state(symbol_dfs, original_cols,algo)
+        display_last_indicators_with_state(symbol_dfs,algo)
 
 
     time.sleep(0.5)
