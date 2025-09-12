@@ -110,7 +110,7 @@ class CRSICalculator:
         self.df = df.drop(columns=['is_custom_close','delta','gain','loss'], errors='ignore')
 
     def _update_last(self):
-        """Met à jour la dernière bougie (même hors close_time)"""
+        """Recalcule les valeurs depuis le dernier close_time (valeurs figées) jusqu'à la dernière bougie"""
         df = self.df
         period = self.period
         alpha = 1 / period
@@ -118,29 +118,44 @@ class CRSICalculator:
         gain_col = f'avg_gain_{self.name}'
         loss_col = f'avg_loss_{self.name}'
 
-        # Récupère la dernière ligne qui avait un RSI valide
-        prev_row = df.dropna(subset=[gain_col, loss_col, self.name]).iloc[-1]
-        last_row = df.iloc[-1]
+        # Dernier close_time valide
+        mask_close = df.index.map(lambda x: (x.hour, x.minute) in self.close_times)
+        last_close_idx = df[mask_close].dropna(subset=[gain_col, loss_col, self.name]).index[-1]
 
-        delta = last_row['close'] - prev_row['close']
-        gain = max(delta, 0)
-        loss = max(-delta, 0)
+        # Référence : valeurs de ce close_time (à garder fixes comme base)
+        ref_row = df.loc[last_close_idx]
+        base_gain = ref_row[gain_col]
+        base_loss = ref_row[loss_col]
+        base_price = ref_row['close']
 
-        new_avg_gain = (1 - alpha) * prev_row[gain_col] + alpha * gain
-        new_avg_loss = (1 - alpha) * prev_row[loss_col] + alpha * loss
+        gain_avg = base_gain
+        loss_avg = base_loss
+        last_price = base_price
 
-        if new_avg_loss == 0:
-            new_rsi = 100
-        else:
-            rs = new_avg_gain / new_avg_loss
-            new_rsi = 100 - (100 / (1 + rs))
+        # Mise à jour à partir de la bougie suivante
+        for idx in df.loc[last_close_idx:].index[1:]:
+            close_cur = df.at[idx, 'close']
+            delta = close_cur - last_price
+            gain_cur = max(delta, 0)
+            loss_cur = max(-delta, 0)
 
-        # Mise à jour
-        df.at[df.index[-1], gain_col] = new_avg_gain
-        df.at[df.index[-1], loss_col] = new_avg_loss
-        df.at[df.index[-1], self.name] = new_rsi
+            gain_avg = (1 - alpha) * base_gain + alpha * gain_cur
+            loss_avg = (1 - alpha) * base_loss + alpha * loss_cur
+
+            if loss_avg == 0:
+                rsi = 100
+            else:
+                rs = gain_avg / loss_avg
+                rsi = 100 - (100 / (1 + rs))
+
+            df.at[idx, gain_col] = gain_avg
+            df.at[idx, loss_col] = loss_avg
+            df.at[idx, self.name] = rsi
+
+            #last_price = close_cur
 
         self.df = df
+
 
     def get_df(self):
         return self.df
