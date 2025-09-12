@@ -249,12 +249,15 @@ class CStrat_RSI5min30:
         # RSI 4h
         df = CRSICalculator.CRSICalculator(
             df, period=14,
-            close_times=[(h, m) for h in range(0, 24, 4) for m in [0]],
+            close_times=[(h, m) for h in range(3, 23, 4) for m in [59]],
             name="rsi_4h_14_P2"
         ).get_df()
 
+        last_rsi = df["rsi_4h_14_P2"].iloc[-1]
+        print("Dernier RSI 4h (14, P2) :", last_rsi)
+
         # RSI 5m
-        close_times_5m = [(h, m) for h in range(24) for m in range(0, 60, 5)]
+        close_times_5m = [(h, m) for h in range(24) for m in range(4, 59, 5)]
         df = CRSICalculator.CRSICalculator(
             df, period=14, close_times=close_times_5m, name="rsi_5m_14_P2"
         ).get_df()
