@@ -8,6 +8,7 @@ import pandas as pd
 import re
 
 PANDA_DIR = "panda_results"
+#PANDA_DIR = "panda"
 
 class PandaViewerApp:
     def __init__(self, root):
@@ -65,11 +66,11 @@ class PandaViewerApp:
             if col[-5] == '_' and col[-6] == '_':  # "__x_P1"
                 color_code = col[-4]
                 if color_code in valid_colors:
-                    self.ax_p1.plot(df.index, df[col], label=col, color=color_code, linewidth=1)
+                    self.ax_p1.plot(df.index, df[col], label=col, color=color_code, linewidth=1,zorder=1)
             else :
                 color_code = col[-4]
                 if color_code in valid_colors:
-                    self.ax_p1.scatter(df.index, df[col], marker=col[-6], color=color_code, label=col, s=40)
+                    self.ax_p1.scatter(df.index, df[col], marker=col[-6], color=color_code, label=col, s=40,zorder=2)
 
         self.ax_p1.set_ylabel("Prix")
         self.ax_p1.legend(loc="upper left")

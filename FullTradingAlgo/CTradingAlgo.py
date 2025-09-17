@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from tqdm import tqdm
+import importlib
 
 # from strategies.CStrat_4h_HA import CStrat_4h_HA
 from strategies.CStrat_RSI5min30 import CStrat_RSI5min30
@@ -20,15 +21,31 @@ class CTradingAlgo:
         # Stockage des DataFrames par symbol
         self.symbol_dfs = {}
 
-        # Dynamically instantiate the strategy class
-        if self.strategy_name == "4h_HA":
-            self.strategy = CStrat_4h_HA(self.interface_trade, self.risk_per_trade_pct, self.stop_loss_ratio)
-        elif self.strategy_name == "rsi_30":
-            self.strategy = CStrat_RSI30(self.interface_trade, self.risk_per_trade_pct, self.stop_loss_ratio)
-        elif self.strategy_name == "RSI5min30":
-            self.strategy = CStrat_RSI5min30(self.interface_trade, self.risk_per_trade_pct)
-        else:
-            raise ValueError(f"Stratégie inconnue : {self.strategy_name}")
+        # # Dynamically instantiate the strategy class
+        # if self.strategy_name == "4h_HA":
+        #     self.strategy = CStrat_4h_HA(self.interface_trade, self.risk_per_trade_pct, self.stop_loss_ratio)
+        # elif self.strategy_name == "rsi_30":
+        #     self.strategy = CStrat_RSI30(self.interface_trade, self.risk_per_trade_pct, self.stop_loss_ratio)
+        # elif self.strategy_name == "RSI5min30":
+        #     self.strategy = CStrat_RSI5min30(self.interface_trade, self.risk_per_trade_pct)
+        # elif self.strategy_name == "RSI5min30":
+        #     self.strategy = CStrat_RSI5min30(self.interface_trade, self.risk_per_trade_pct)
+        # else:
+        #     raise ValueError(f"Stratégie inconnue : {self.strategy_name}")
+
+        try:
+            # Import dynamique du module
+            module = importlib.import_module(f"strategies.{self.strategy_name}")
+            # Récupère la classe (même nom que strategy_name)
+            strategy_class = getattr(module, self.strategy_name)
+        except (ImportError, AttributeError):
+            raise ValueError(f"Unknown strategy: {self.strategy_name}")
+
+        # Instanciation
+        self.strategy = strategy_class(
+            self.interface_trade,
+            self.risk_per_trade_pct,
+        )
 
     def run(self, list_data: list, execution):
         merged = []
@@ -76,8 +93,14 @@ class CTradingAlgo:
                             side=action["side"],
                             usdc=action["usdc"]
                         )
-                        # On écrit dans la colonne entry_price
-                        df.loc[timestamp, "entry_price_*_g_P1"] = action["price"]
+
+                        if action["side"] == "LONG":
+                            # On écrit dans la colonne entry_price
+                            df.loc[timestamp, "entry_price_^_g_P1"] = action["price"]
+                        else:
+                            # On écrit dans la colonne entry_price
+                            df.loc[timestamp, "entry_price_v_g_P1"] = action["price"]
+
 
                     elif action["action"] == "CLOSE":
                         self._close_position(
@@ -88,8 +111,12 @@ class CTradingAlgo:
                             exit_side=action["exit_side"],
                             reason=action["reason"]
                         )
-                        # On écrit dans la colonne exit_price
-                        df.loc[timestamp, "exit_price_*_r_P1"] = action["exit_price"]
+                        if action["side"] == "LONG":
+                            # On écrit dans la colonne exit_price
+                            df.loc[timestamp, "exit_price_^_r_P1"] = action["exit_price"]
+                        else:
+                            # On écrit dans la colonne exit_price
+                            df.loc[timestamp, "exit_price_v_r_P1"] = action["exit_price"]
 
                     elif action["action"] == "M1":
                         df.loc[timestamp, "entry_price_^_g_P1"] = action["price"]
