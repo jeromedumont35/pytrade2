@@ -200,3 +200,123 @@ class COrders_Bitget:
                 print("✅ Position fermée immédiatement.")
             #else:
                 #self.positions.append(entry)
+
+    def get_position_info(self, symbol: str):
+        """
+        Récupère pour la paire donnée :
+         - invested : montant investi (USDT) -> priorité : champ API si présent, sinon calcul (notional/leverage)
+         - entry_price, current_price, side, leverage, notional, performance_pct
+
+        Retourne un dict ou None si pas de position ouverte.
+        """
+        try:
+            symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+            positions = self.client.fetch_positions([symbol_ccxt])
+            # trouver la position ouverte (contracts > 0)
+            position = next((p for p in positions if float(p.get("contracts", 0) or 0) > 0), None)
+
+            if not position:
+                print(f"⚠️ Aucune position ouverte trouvée pour {symbol_ccxt}")
+                return None
+
+            info = position.get("info", {}) or {}
+
+            # helper pour récupérer un float depuis plusieurs clés
+            def _getf(src, *keys):
+                for k in keys:
+                    if isinstance(src, dict) and k in src and src[k] not in (None, ""):
+                        try:
+                            return float(src[k])
+                        except Exception:
+                            try:
+                                return float(str(src[k]))
+                            except Exception:
+                                pass
+                return None
+
+            # prix d'entrée (plusieurs noms possibles selon la version ccxt / exchange)
+            entry_price = _getf(position, "entryPrice", "entry_price", "averageOpenPrice", "avgCost") \
+                          or _getf(info, "averageOpenPrice", "avgCost", "avg_price", "avgEntryPrice")
+            if entry_price is None:
+                # dernier recours : tenter d'extraire depuis 'price' dans info
+                entry_price = _getf(info, "price", "openPrice")
+
+            # prix actuel
+            current_price = _getf(position, "markPrice", "mark_price", "last") \
+                            or _getf(info, "markPrice", "lastPrice")
+            if current_price is None:
+                # fallback vers le ticker
+                ticker = self.client.fetch_ticker(symbol_ccxt)
+                current_price = float(ticker["last"])
+
+            # contrats (taille de position)
+            contracts = _getf(position, "contracts", "size", "positionAmt") or _getf(info, "size", "qty") or 0.0
+
+            # leverage
+            leverage = _getf(position, "leverage") or _getf(info, "leverage") or 1.0
+
+            # contract size (par défaut 1 si absent)
+            market = self.client.markets.get(symbol_ccxt) if hasattr(self.client, "markets") else None
+            contract_size = None
+            if market:
+                contract_size = market.get("contractSize") or market.get("contract_size")
+            contract_size = contract_size or _getf(info, "contractSize", "contract_size") or 1.0
+
+            # notional (taille de la position en USDT)
+            notional = float(contracts) * float(contract_size) * float(entry_price)
+
+            # tenter de lire directement le margin/invested depuis la réponse API (plusieurs clés possibles)
+            invested = None
+            for k in ("margin", "positionMargin", "initialMargin", "openMargin", "usedMargin", "marginBalance", "margin_amt"):
+                invested = _getf(position, k) or _getf(info, k)
+                if invested:
+                    invested_source = f"API field '{k}'"
+                    break
+            else:
+                invested = None
+                invested_source = None
+
+            # si pas de margin direct, on calcule à partir du notional / leverage
+            if not invested or invested == 0:
+                if leverage and float(leverage) > 0:
+                    invested = notional / float(leverage)
+                    invested_source = f"calculated (notional / leverage) -> notional={notional:.4f}, leverage={leverage}"
+                else:
+                    invested = notional
+                    invested_source = "calculated (notional, leverage non fourni)"
+
+            # direction / side
+            side = (position.get("side") or info.get("holdSide") or info.get("side") or "").lower()
+            if side == "":
+                # heuristique : si contracts > 0 on suppose 'long' sauf si holdSide dit 'short'
+                side = "long" if (str(info.get("holdSide", "")).lower() != "short") else "short"
+
+            # performance en %
+            if side.startswith("long"):
+                perf = (float(current_price) - float(entry_price)) / float(entry_price)
+            else:
+                perf = (float(entry_price) - float(current_price)) / float(entry_price)
+
+            perf_pct = round(perf * 100, 4)
+
+            result = {
+                "symbol": symbol_ccxt,
+                "side": side,
+                "entry_price": float(entry_price),
+                "current_price": float(current_price),
+                "contracts": float(contracts),
+                "contract_size": float(contract_size),
+                "notional": round(notional, 8),
+                "leverage": float(leverage),
+                "invested": round(float(invested), 8),
+                "invested_source": invested_source,
+                "performance_pct": perf_pct
+            }
+
+            print(f"📈 {symbol_ccxt} ({side.upper()}) | Investi: {result['invested']:.4f} USDT | Perf: {result['performance_pct']}%")
+            return result
+
+        except Exception as e:
+            print(f"❌ Erreur lors de la récupération de la position pour {symbol} : {e}")
+            return None
+
