@@ -101,14 +101,31 @@ class CStrat_TrackerShort:
             if perf <= -5.0:
                 self._set_state(symbol, StratState.WAITING_NEW_ENTRY)
                 state["rsi_max"] = rsi
-                print(f"[TRACE] {symbol}: Enter WAITING_NEW_ENTRY, rsi_max={rsi:.2f}")
+                state["price_max_after_wait"] = close
+                print(f"[TRACE] {symbol}: Enter WAITING_NEW_ENTRY, rsi_max={rsi:.2f}, price_max={close:.2f}")
 
-        # 3️⃣ WAITING_NEW_ENTRY → attend baisse RSI
+        # 3️⃣ WAITING_NEW_ENTRY → mémorise RSI max et prix max
         elif state["state"] == StratState.WAITING_NEW_ENTRY:
-            if state["rsi_max"] is None or rsi > state["rsi_max"]:
+            # mise à jour RSI max et prix max
+            if state.get("rsi_max") is None or rsi > state["rsi_max"]:
                 state["rsi_max"] = rsi
+            if state.get("price_max_after_wait") is None or close > state["price_max_after_wait"]:
+                state["price_max_after_wait"] = close
 
+            # condition : RSI redescend de 3 points
             if rsi <= state["rsi_max"] - 3:
+                self._set_state(symbol, StratState.WAITING_REBOUND_AFTER_RSI_DROP)
+                print(
+                    f"[TRACE] {symbol}: RSI drop detected ({state['rsi_max']:.2f} → {rsi:.2f}), enter WAITING_REBOUND_AFTER_RSI_DROP")
+
+        # 4️⃣ WAITING_REBOUND_AFTER_RSI_DROP → attend le rebond du prix
+        elif state["state"] == StratState.WAITING_REBOUND_AFTER_RSI_DROP:
+            price_max = state.get("price_max_after_wait", close)
+            seuil = 0.995 * price_max  # seuil = 99.5% du max
+            print(f"[TRACE] {symbol}: price_max={price_max:.2f}, seuil={seuil:.2f}, close={close:.2f}")
+
+            # ✅ ouverture SHORT si le prix remonte au-dessus du seuil
+            if close >= seuil:
                 invested, perf = self._get_perf_info(symbol)
                 add_amount = self._compute_additional_amount(invested, perf)
 
@@ -120,13 +137,13 @@ class CStrat_TrackerShort:
                         "price": close,
                         "sl": None,
                         "usdc": add_amount,
-                        "reason": f"RSI_DROP_FROM_MAX ({state['rsi_max']:.2f}->{rsi:.2f})",
+                        "reason": f"PRICE_REBOUND_AFTER_RSI_DROP ({price_max:.2f}->{close:.2f})",
                         "entry_index": 0
                     })
-                    print(f"[TRACE] {symbol}: Add short {add_amount:.2f} USDC to target {self.perf_cible}%")
+                    print(f"[TRACE] {symbol}: Add short {add_amount:.2f} USDC (price rebound to 99.5%)")
                     self._set_state(symbol, StratState.AMOUNT_AUGMENTED)
 
-        # 4️⃣ AMOUNT_AUGMENTED → surveille perf
+        # 5️⃣ AMOUNT_AUGMENTED → surveille perf
         elif state["state"] == StratState.AMOUNT_AUGMENTED:
             invested, perf = self._get_perf_info(symbol)
             print(f"[TRACE] {symbol}: (AMOUNT_AUGMENTED) Perf={perf:.2f}%, Invested={invested:.2f}")
@@ -148,6 +165,7 @@ class CStrat_TrackerShort:
             elif perf <= -5.0:
                 self._set_state(symbol, StratState.WAITING_NEW_ENTRY)
                 state["rsi_max"] = rsi
+                state["price_max_after_wait"] = close
                 print(f"[TRACE] {symbol}: Perf={perf:.2f}%, retour WAITING_NEW_ENTRY")
 
         return actions
@@ -157,7 +175,7 @@ class CStrat_TrackerShort:
         df = df[~df.index.duplicated(keep='last')].sort_index()
 
         # RSI 5m
-        close_times_5m = [(h, m) for h in range(24) for m in range(4, 59, 5)]
+        close_times_5m = [(h, m) for h in range(24) for m in range(0, 59, 1)]
         df = CRSICalculator.CRSICalculator(
             df, period=14, close_times=close_times_5m, name="rsi_5m_14_P2"
         ).get_df()

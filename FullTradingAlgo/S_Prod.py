@@ -1,11 +1,13 @@
 import time
 from datetime import datetime, timedelta, timezone
 from downloader import CBinanceDataFetcher
+from downloader import CBitgetDataFetcher
 import CTradingAlgo
 import pandas as pd
 import CEvaluateROI
 import requests
 from orders import COrders_Bitget
+import warnings
 
 def test_internet_connection(timeout=3):
     """
@@ -91,23 +93,26 @@ def align_df_to_new(df_sym: pd.DataFrame, df_new: pd.DataFrame) -> pd.DataFrame:
     common_cols = [c for c in df_sym.columns if c in df_new.columns]
     return df_sym[common_cols]
 
+warnings.filterwarnings("ignore", message="The behavior of DataFrame concatenation.*")
+
 # === PARAMÈTRES ===
 symbols = [
-    "SOLUSDC","ATOMUSDC","PENGUUSDC"
+    "BLUEUSDT"
 ]
 
 interval = "1m"
-days = 5
+days = 0.5
 
 # Création de l'évaluateur
-evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
+#evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.000)
 identifiants = lire_identifiants("../../Bitget_jdu.key")
 print(identifiants)
-#trader = COrders_Bitget.COrders_Bitget(identifiants["api_key"], identifiants["api_secret"], identifiants["password"])
+trader = COrders_Bitget.COrders_Bitget(identifiants["api_key"], identifiants["api_secret"], identifiants["password"])
 
 # === INITIALISATION ===
-fetcher = CBinanceDataFetcher.BinanceDataFetcher()
-algo = CTradingAlgo.CTradingAlgo(l_interface_trade=evaluator, risk_per_trade_pct=0.2, strategy_name="RSI5min30")
+#fetcher = CBinanceDataFetcher.BinanceDataFetcher()
+fetcher = CBitgetDataFetcher.BitgetDataFetcher()
+algo = CTradingAlgo.CTradingAlgo(l_interface_trade=trader, risk_per_trade_pct=10, strategy_name="CStrat_TrackerShort")
 
 # === 1. Téléchargement et simulation historique ===
 print("📥 Téléchargement de l’historique...")
@@ -183,6 +188,7 @@ while True:
             dups = df_sym.index[df_sym.index.duplicated()]
             if not dups.empty:
                 print("⚠️ Doublons détectés dans df_sym:", dups)
+
 
             df_sym = pd.concat([df_sym.iloc[1:], df_new])
 
