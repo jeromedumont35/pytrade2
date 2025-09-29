@@ -4,7 +4,7 @@ from downloader import CBinanceDataFetcher
 from downloader import CBitgetDataFetcher
 import CTradingAlgo
 import pandas as pd
-import CEvaluateROI
+#import CEvaluateROI
 import requests
 from orders import COrders_Bitget
 import warnings
