@@ -17,7 +17,7 @@ class StratState(Enum):
 
 
 class CStrat_TrackerShort:
-    def __init__(self, trader=None, risk_per_trade_pct: float = 10.0, perf_cible: float = -2.0):
+    def __init__(self, trader=None, risk_per_trade_pct: float = 10.0, perf_cible: float = -1.5):
         """
         trader : interface avec méthode get_position_info(symbol)
         """
