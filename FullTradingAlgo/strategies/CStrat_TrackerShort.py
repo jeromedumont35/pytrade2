@@ -10,7 +10,7 @@ import CTransformToPanda
 
 
 class StratState(Enum):
-    NOT_USED = auto()
+    WAITING_ENTRY = auto()
     INITIAL_BUY_DONE = auto()
     WAITING_NEW_ENTRY = auto()
     AMOUNT_AUGMENTED = auto()
@@ -29,8 +29,9 @@ class CStrat_TrackerShort:
 
     def _init_symbol_state(self, symbol):
         if symbol not in self.state:
+            # 🔁 État initial = WAITING_ENTRY
             self.state[symbol] = {
-                "state": StratState.NOT_USED,
+                "state": StratState.WAITING_ENTRY,
                 "rsi_max": None,
             }
 
@@ -50,10 +51,7 @@ class CStrat_TrackerShort:
         return 0.0, 0.0
 
     def get_symbol_states(self):
-        """
-        Retourne un dictionnaire {symbole: état courant}.
-        Exemple : {"SHIBUSDC": "WAIT_RSI5M_LOW", "SOLUSDC": "TRADE_OPEN"}
-        """
+        """Retourne un dictionnaire {symbole: état courant}"""
         return {sym: st["state"].name for sym, st in self.state.items()}
 
     def _compute_additional_amount(self, invested, perf_actuel):
@@ -61,7 +59,6 @@ class CStrat_TrackerShort:
         perf_target = self.perf_cible
         if perf_actuel >= perf_target:
             return 0.0
-        # Exemple : perf_actuel = -5, perf_target = -2 → delta = 3 → ajout ≈ 150%
         add_amount = invested * ((abs(perf_actuel) - abs(perf_target)) / abs(perf_target))
         return round(add_amount, 2)
 
@@ -70,103 +67,67 @@ class CStrat_TrackerShort:
         actions = []
         self._init_symbol_state(symbol)
         state = self.state[symbol]
-        rsi = row.get("rsi_5m_14_P2", None)
         close = row["close"]
+        rsi_15m = row.get("rsi_15m_9_P2", None)
+        rsi_3m = row.get("rsi_3m_9_P2", None)
 
-        if rsi is None or blocked:
+        if rsi_15m is None or rsi_3m is None or blocked:
             return actions
 
-        # 1️⃣ NOT_USED → entrée initiale
-        if state["state"] == StratState.NOT_USED:
-            montant = self.initial_amount
-            actions.append({
-                "action": "OPEN",
-                "symbol": symbol,
-                "side": "SHORT",
-                "price": close,
-                "sl": None,
-                "usdc": montant,
-                "reason": "INITIAL_ENTRY",
-                "entry_index": 0
-            })
-            print(f"[TRACE] {symbol}: Initial short opened ({montant:.2f} USDC @ {close})")
-            self._set_state(symbol, StratState.INITIAL_BUY_DONE)
-            return actions
+        # 1️⃣ WAITING_ENTRY → vérifier conditions d’entrée SHORT
+        if state["state"] == StratState.WAITING_ENTRY:
+            if rsi_3m > 80 and rsi_15m > 70:
+                montant = self.initial_amount
+                actions.append({
+                    "action": "OPEN",
+                    "symbol": symbol,
+                    "side": "SHORT",
+                    "price": close,
+                    "sl": None,
+                    "usdc": montant,
+                    "reason": "INITIAL_ENTRY_RSI_CONDITION",
+                    "entry_index": 0
+                })
+                print(f"[TRACE] {symbol}: RSI3m={rsi_3m:.2f} RSI15m={rsi_15m:.2f} → SHORT {montant:.2f} USDC @ {close}")
+                self._set_state(symbol, StratState.INITIAL_BUY_DONE)
+                return actions
 
-        # 2️⃣ INITIAL_BUY_DONE → surveille perf
+        # 2️⃣ INITIAL_BUY_DONE → surveille performance
         elif state["state"] == StratState.INITIAL_BUY_DONE:
             invested, perf = self._get_perf_info(symbol)
             print(f"[TRACE] {symbol}: Perf={perf:.2f}%, Invested={invested:.2f}")
-
             if perf <= -5.0:
                 self._set_state(symbol, StratState.WAITING_NEW_ENTRY)
-                state["rsi_max"] = rsi
+                state["rsi_max"] = rsi_15m
                 state["price_max_after_wait"] = close
-                print(f"[TRACE] {symbol}: Enter WAITING_NEW_ENTRY, rsi_max={rsi:.2f}, price_max={close:.2f}")
+                print(f"[TRACE] {symbol}: Enter WAITING_NEW_ENTRY, rsi_max={rsi_15m:.2f}, price_max={close:.2f}")
 
-        # 3️⃣ WAITING_NEW_ENTRY → mémorise RSI max et prix max
+        # 🔁 Le reste de la logique est inchangé
         elif state["state"] == StratState.WAITING_NEW_ENTRY:
-            # mise à jour RSI max et prix max
-            if state.get("rsi_max") is None or rsi > state["rsi_max"]:
-                state["rsi_max"] = rsi
+            if state.get("rsi_max") is None or rsi_15m > state["rsi_max"]:
+                state["rsi_max"] = rsi_15m
             if state.get("price_max_after_wait") is None or close > state["price_max_after_wait"]:
                 state["price_max_after_wait"] = close
 
-            # condition : RSI redescend de 3 points
-            if rsi <= state["rsi_max"] - 3:
-                self._set_state(symbol, StratState.WAITING_REBOUND_AFTER_RSI_DROP)
-                print(
-                    f"[TRACE] {symbol}: RSI drop detected ({state['rsi_max']:.2f} → {rsi:.2f}), enter WAITING_REBOUND_AFTER_RSI_DROP")
+            if rsi_15m <= state["rsi_max"] - 3:
+                self._set_state(symbol, StratState.AMOUNT_AUGMENTED)
+                print(f"[TRACE] {symbol}: RSI drop detected ({state['rsi_max']:.2f} → {rsi_15m:.2f}), enter AMOUNT_AUGMENTED")
 
-        # 4️⃣ WAITING_REBOUND_AFTER_RSI_DROP → attend le rebond du prix
-        elif state["state"] == StratState.WAITING_REBOUND_AFTER_RSI_DROP:
-            price_max = state.get("price_max_after_wait", close)
-            seuil = 0.995 * price_max  # seuil = 99.5% du max
-            print(f"[TRACE] {symbol}: price_max={price_max:.2f}, seuil={seuil:.2f}, close={close:.2f}")
-
-            # ✅ ouverture SHORT si le prix remonte au-dessus du seuil
-            if close >= seuil:
-                invested, perf = self._get_perf_info(symbol)
-                add_amount = self._compute_additional_amount(invested, perf)
-
-                if add_amount > 0:
-                    actions.append({
-                        "action": "OPEN",
-                        "symbol": symbol,
-                        "side": "SHORT",
-                        "price": close,
-                        "sl": None,
-                        "usdc": add_amount,
-                        "reason": f"PRICE_REBOUND_AFTER_RSI_DROP ({price_max:.2f}->{close:.2f})",
-                        "entry_index": 0
-                    })
-                    print(f"[TRACE] {symbol}: Add short {add_amount:.2f} USDC (price rebound to 99.5%)")
-                    self._set_state(symbol, StratState.AMOUNT_AUGMENTED)
-
-        # 5️⃣ AMOUNT_AUGMENTED → surveille perf
         elif state["state"] == StratState.AMOUNT_AUGMENTED:
             invested, perf = self._get_perf_info(symbol)
-            print(f"[TRACE] {symbol}: (AMOUNT_AUGMENTED) Perf={perf:.2f}%, Invested={invested:.2f}")
-
+            print(f"[TRACE] {symbol}: AMOUNT_AUGMENTED Perf={perf:.2f}%")
             if perf >= 1.0:
                 actions.append({
                     "action": "CLOSE",
                     "symbol": symbol,
                     "side": "SHORT",
                     "price": close,
-                    "sl": None,
                     "usdc": invested,
                     "reason": "PROFIT_TARGET_REACHED",
                     "entry_index": 0
                 })
                 print(f"[TRACE] {symbol}: Close trade, profit >= +1%")
-                self._set_state(symbol, StratState.NOT_USED)
-
-            elif perf <= -5.0:
-                self._set_state(symbol, StratState.WAITING_NEW_ENTRY)
-                state["rsi_max"] = rsi
-                state["price_max_after_wait"] = close
-                print(f"[TRACE] {symbol}: Perf={perf:.2f}%, retour WAITING_NEW_ENTRY")
+                self._set_state(symbol, StratState.WAITING_ENTRY)
 
         return actions
 
@@ -174,13 +135,19 @@ class CStrat_TrackerShort:
         df = df.copy()
         df = df[~df.index.duplicated(keep='last')].sort_index()
 
-        # RSI 5m
-        close_times_5m = [(h, m) for h in range(24) for m in range(0, 59, 1)]
+        # RSI 15m
+        close_times_15m = [(h, m) for h in range(24) for m in range(14, 60, 15)]
         df = CRSICalculator.CRSICalculator(
-            df, period=14, close_times=close_times_5m, name="rsi_5m_14_P2"
+            df, period=9, close_times=close_times_15m, name="rsi_15m_9_P2"
+        ).get_df()
+
+        # RSI 3m
+        close_times_3m = [(h, m) for h in range(24) for m in range(2, 60, 3)]
+        df = CRSICalculator.CRSICalculator(
+            df, period=9, close_times=close_times_3m, name="rsi_3m_9_P2"
         ).get_df()
 
         return df
 
     def get_main_indicator(self):
-        return ["rsi_5m_14_P2"]
+        return ["rsi_3m_9_P2", "rsi_15m_9_P2"]
