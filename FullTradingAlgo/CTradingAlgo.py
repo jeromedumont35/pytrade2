@@ -3,9 +3,6 @@ import pandas as pd
 from tqdm import tqdm
 import importlib
 
-# from strategies.CStrat_4h_HA import CStrat_4h_HA
-from strategies.CStrat_RSI5min30 import CStrat_RSI5min30
-
 
 class CTradingAlgo:
     def __init__(self, l_interface_trade, risk_per_trade_pct: float = 0.1, strategy_name: str = "strategy_1"):
@@ -104,7 +101,7 @@ class CTradingAlgo:
 
                     elif action["action"] == "CLOSE":
                         self._close_position(
-                            pos=action["position"],
+                            pos=[],
                             exit_price=action["exit_price"],
                             symbol=action["symbol"],
                             timestamp=timestamp,
@@ -155,12 +152,11 @@ class CTradingAlgo:
             side=exit_side,
             asset=symbol,
             timestamp=timestamp,
-            exit_type=reason,
-            amount_usdc=pos["usdc"]
+            exit_type=reason
         )
         self.closed_count += 1
         self.total_trades += 1
-        self.open_positions.remove(pos)
+        #self.open_positions.remove(pos)
 
     def _save_results(self):
         os.makedirs("./panda_results", exist_ok=True)
