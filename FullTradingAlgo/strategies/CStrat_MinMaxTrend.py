@@ -180,24 +180,37 @@ class CStrat_MinMaxTrend:
         if not isinstance(df.index, pd.DatetimeIndex):
             raise ValueError("Le DataFrame doit avoir un index temporel (datetime).")
 
+        # ==========================================================
+        # 🧮 Calcul de la "variabilité" moyenne (|open - close|)
+        # ==========================================================
+        df["abs_diff"] = (df["open"] - df["close"]).abs()
+        mean_abs_diff = df["abs_diff"].mean()
+
+        print(f"📊 Variabilité moyenne (|open - close|) : {mean_abs_diff:.8f}")
+        # ==========================================================
+
         # Calcul d'une trendline max
         calc_max = CMinMaxTrend.CMinMaxTrend(
             df, kind="max", name="Max__c_P1",
-            name_init="Init__y_P1", p_init=-0.04,
-            CstValideMinutes=30, name_slope_change="SlopeChange_+_y_P1"
+            name_init="Init__y_P1",
+            p_init=-mean_abs_diff/3,  # pente basée sur la variabilité
+            CstValideMinutes=30,
+            name_slope_change="SlopeChange_+_y_P1",
+            threshold=mean_abs_diff*3  # seuil de dépassement basé sur la variabilité
         )
         df = calc_max.get_df()
 
-        # # RSI 4H calculé mais plus utilisé pour la sortie
-        # df = CRSICalculator.CRSICalculator(
-        #     df, period=14,
-        #     close_times=[(h, m) for h in range(3, 23, 4) for m in [59]],
-        #     name="rsi_4h_14_P2"
-        # ).get_df()
+        close_times_15m = [(h, m) for h in range(24) for m in range(14, 59, 15)]
+        df = CRSICalculator.CRSICalculator(
+            df, period=14, close_times=close_times_15m, name="rsi_15m_14_P2"
+        ).get_df()
 
         # 🔹 Renommage colonnes pour la stratégie
         df["close__b_P1"] = df["close"]
         df["high__m_P1"] = df["high"]
+
+        # Nettoyage temporaire de la colonne intermédiaire
+        df.drop(columns=["abs_diff"], inplace=True, errors="ignore")
 
         return df
 
