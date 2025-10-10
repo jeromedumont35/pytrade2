@@ -11,15 +11,42 @@ class CTransformToPanda:
         os.makedirs(self.panda_dir, exist_ok=True)
 
     def _prepare_dataframe(self, candles):
-        df = pd.DataFrame(candles, columns=[
-            "time", "open", "high", "low", "close", "volume",
-            "close_time", "quote_asset_volume", "num_trades",
-            "taker_buy_base", "taker_buy_quote", "ignore"
-        ])
-        df["time"] = pd.to_datetime(df["time"], unit="ms")
-        df.set_index("time", inplace=True)
-        df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
+        import pandas as pd
+
+        if not candles or not isinstance(candles[0], (list, tuple)):
+            raise ValueError("⛔ Données de bougies invalides ou vides")
+
+        nb_cols = len(candles[0])
+
+        # === BINANCE === (12 colonnes)
+        if nb_cols == 12:
+            df = pd.DataFrame(candles, columns=[
+                "time", "open", "high", "low", "close", "volume",
+                "close_time", "quote_asset_volume", "num_trades",
+                "taker_buy_base", "taker_buy_quote", "ignore"
+            ])
+            df["time"] = pd.to_datetime(df["time"], unit="ms")
+            df.set_index("time", inplace=True)
+            df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(
+                float)
+
+        # === BITGET === (8 colonnes)
+        elif nb_cols == 8:
+            df = pd.DataFrame(candles, columns=[
+                "time", "open", "high", "low", "close",
+                "volume", "quote_volume", "usd_volume"
+            ])
+            df["time"] = pd.to_datetime(df["time"].astype(float), unit="ms")
+            df.set_index("time", inplace=True)
+            df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(
+                float)
+
+        else:
+            raise ValueError(f"⛔ Format de bougies inconnu : {nb_cols} colonnes (attendu 8 ou 12)")
+
+        # Calcul colonne moyenne
         df["moy_l_h_e_c"] = (df["open"] + df["close"] + df["high"] + df["low"]) / 4
+
         return df[["open", "high", "low", "close", "volume", "moy_l_h_e_c"]]
 
     def process_all(self, apply_indicators_func):
