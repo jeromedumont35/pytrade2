@@ -114,7 +114,7 @@ if __name__ == "__main__":
     ]
 
     interval = "1m"
-    save_dir = "raw"
+    save_dir = "../raw"
 
     start_time = datetime(2025, 1, 1, 1, 1)
     end_time   = datetime(2025, 7, 24, 1, 1)
