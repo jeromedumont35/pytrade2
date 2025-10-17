@@ -33,9 +33,9 @@ def lire_identifiants(filepath: str) -> dict:
 
 
 # === Lecture des arguments CLI ===
-if len(sys.argv) != 3:
-    print("❌ Usage : python main_prod.py <MONTANT> <SYMBOL>")
-    print("Exemple : python main_prod.py 100 BNBUSDT")
+if len(sys.argv) != 4:
+    print("❌ Usage : python main_prod.py <MONTANT> <SYMBOL> <NB_JOURS>")
+    print("Exemple : python main_prod.py 100 BNBUSDT 7")
     sys.exit(1)
 
 # 1️⃣ Montant
@@ -50,7 +50,16 @@ except ValueError:
 # 2️⃣ Symbole
 symbol = sys.argv[2].upper()
 
-print(f"✅ Arguments reçus : MONTANT = {montant}, SYMBOL = {symbol}")
+# 3️⃣ Nombre de jours
+try:
+    nb_jours = int(sys.argv[3])
+    if nb_jours <= 0:
+        raise ValueError
+except ValueError:
+    print("❌ Le nombre de jours doit être un entier positif.")
+    sys.exit(1)
+
+print(f"✅ Arguments reçus : MONTANT = {montant}, SYMBOL = {symbol}, NB_JOURS = {nb_jours}")
 
 # === Lecture des identifiants ===
 identifiants = lire_identifiants("../../../../Bitget_jdu.key")
@@ -65,16 +74,13 @@ fetcher = CBitgetDataFetcher.BitgetDataFetcher()
 # === Lancement du runner ===
 runner = CProd.CProd(
     symbols=[symbol],             # symbole passé en argument
-    days=0.5,
+    days=nb_jours,                # <-- 3e paramètre : nombre de jours
     trader=trader,
-    risk_per_trade_pct=1,
-    strategy_name="CStrat_TrackerShort",
+    risk_per_trade_pct=montant,
+    strategy_name="CStrat_MinMaxTrend",
     fetcher=fetcher,
     interval="1m"
 )
-
-# 💡 Tu peux garder le montant pour une utilisation future :
-# runner.amount = montant
 
 runner.prepare_historical_data()
 runner.run_backtest()
