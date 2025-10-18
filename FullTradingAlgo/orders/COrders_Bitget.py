@@ -161,6 +161,32 @@ class COrders_Bitget:
             print(f"❌ Erreur lors de la récupération du solde USDT : {e}")
             return None
 
+    # ===== Annulation des ordres ouverts =====
+    def cancel_all_open_orders(self, symbol: str):
+        """
+        Annule tous les ordres ouverts (LIMIT, STOP, etc.) pour un symbole donné.
+        Cela ne ferme pas les positions existantes, uniquement les ordres en attente.
+        """
+        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        try:
+            open_orders = self.client.fetch_open_orders(symbol_ccxt)
+            if not open_orders:
+                print(f"ℹ️ Aucun ordre ouvert à annuler sur {symbol_ccxt}.")
+                return
+
+            print(f"🧹 Annulation de {len(open_orders)} ordre(s) ouvert(s) sur {symbol_ccxt}...")
+            for order in open_orders:
+                try:
+                    self.client.cancel_order(order['id'], symbol_ccxt)
+                    print(f"❎ Ordre annulé : {order['id']} ({order['side']} {order['type']} à {order['price']})")
+                except Exception as e:
+                    print(f"⚠️ Impossible d'annuler l'ordre {order['id']} : {e}")
+
+            print(f"✅ Tous les ordres ouverts ont été annulés sur {symbol_ccxt}.")
+        except Exception as e:
+            print(f"❌ Erreur lors de la récupération ou annulation des ordres sur {symbol_ccxt} : {e}")
+
+
     # ===== Ajout d'un trade =====
     def place_order(self, price: float, side: str, asset: str, timestamp, amount_usdc: float = 0.0, exit_type: str = None):
         trade = {
@@ -181,7 +207,7 @@ class COrders_Bitget:
         amount_usdt = trade.get("amount_usdc", 0.0)
 
         if side in ["BUY_LONG", "SELL_SHORT"]:
-            l_order = self.open_position(asset, side, amount_usdt)
+            l_order = self.open_position(asset, side, amount_usdt,price)
             if l_order and l_order.get("status") in ["closed", "filled"]:
                 self.positions.append({
                     "side": side,

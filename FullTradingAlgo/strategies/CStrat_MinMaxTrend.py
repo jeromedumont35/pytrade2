@@ -45,9 +45,10 @@ class CStrat_MinMaxTrend:
         self._init_symbol_state(symbol)
         state = self.state[symbol]
 
-        i = df.index.get_loc(timestamp)
-        if i < 240:
+        if blocked:
             return actions
+
+        i = df.index.get_loc(timestamp)
 
         close = row["close__b_P1"]
         max_line = row.get("Max__c_P1", None)
@@ -58,30 +59,44 @@ class CStrat_MinMaxTrend:
         # 1️⃣ WAIT_REACH_TREND : on attend que le prix soit 3% sous la tendance max
         if state["state"] == StratState.WAIT_REACH_TREND:
             if max_line is not None and not np.isnan(max_line):
-                # Condition d'entrée SHORT : prix sous la tendance de 3%
-                if close > max_line * 0.97:
-                    if blocked:
-                        return actions
 
-                    sl_price = close * 1.03  # SL = +3%
-                    tp_price = close * 0.97  # TP = -3%
-                    usdc = self.risk_per_trade_pct #le risk per trade est en usdc fixe
+                print(max_line)
+                #return actions
+                self.interface_trade.cancel_all_open_orders(symbol)
 
-                    actions.append({
-                        "action": "OPEN",
-                        "symbol": symbol,
-                        "side": "SHORT",
-                        "price": close,
-                        "sl": sl_price,
-                        "tp": tp_price,
-                        "usdc": usdc,
-                        "reason": "PRICE_BELOW_TREND_-3pct",
-                        "entry_index": i
-                    })
+                actions.append({
+                    "action": "OPEN",
+                    "symbol": symbol,
+                    "side": "SHORT",
+                    "price": max_line,
+                    "sl": [],
+                    "usdc": self.risk_per_trade_pct,
+                    "reason": "PRICE_BELOW_TREND_-3pct",
+                    "entry_index": i
+                })
 
-                    state["entry_index"] = i
-                    state["entry_price"] = close
-                    self._set_state(symbol, StratState.TRADE_OPEN)
+                # # Condition d'entrée SHORT : prix sous la tendance de 3%
+                # if close > max_line * 0.97:
+                #
+                #     sl_price = close * 1.03  # SL = +3%
+                #     tp_price = close * 0.97  # TP = -3%
+                #     usdc = self.risk_per_trade_pct #le risk per trade est en usdc fixe
+                #
+                #     actions.append({
+                #         "action": "OPEN",
+                #         "symbol": symbol,
+                #         "side": "SHORT",
+                #         "price": close,
+                #         "sl": sl_price,
+                #         "tp": tp_price,
+                #         "usdc": usdc,
+                #         "reason": "PRICE_BELOW_TREND_-3pct",
+                #         "entry_index": i
+                #     })
+                #
+                #     state["entry_index"] = i
+                #     state["entry_price"] = close
+                    #self._set_state(symbol, StratState.TRADE_OPEN)
 
         # 2️⃣ TRADE_OPEN : gérer les conditions de sortie (TP / SL)
         elif state["state"] == StratState.TRADE_OPEN and open_pos is not None:
@@ -146,10 +161,10 @@ class CStrat_MinMaxTrend:
         calc_max = CMinMaxTrend.CMinMaxTrend(
             df, kind="max", name="Max__c_P1",
             name_init="Init__y_P1",
-            p_init=-mean_abs_diff/3,  # pente basée sur la variabilité
-            CstValideMinutes=30,
+            p_init=-mean_abs_diff/1.5,  # pente basée sur la variabilité
+            CstValideMinutes=10,
             name_slope_change="SlopeChange_+_y_P1",
-            threshold=mean_abs_diff*3  # seuil de dépassement basé sur la variabilité
+            threshold=0#mean_abs_diff*3  # seuil de dépassement basé sur la variabilité
         )
         df = calc_max.get_df()
 
