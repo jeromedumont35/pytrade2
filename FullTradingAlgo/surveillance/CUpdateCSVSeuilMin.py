@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime, timezone
 import os
 
-from FullTradingAlgo.surveillance.CLauncher import CLauncher
+from CLauncher import CLauncher
 
 
 class CUpdateCSVSeuilMin:
