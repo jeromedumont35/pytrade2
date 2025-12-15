@@ -33,7 +33,7 @@ def load_symbol_data(symbols, start_date="20250101_0101", end_date="20250724_010
 evaluator = CEvaluateROI.CEvaluateROI(1000,trading_fee_rate=0.001)
 
 l_interface_trade = CInterfaceTrades.CInterfaceTrades(evaluator)
-algo = CTradingAlgo.CTradingAlgo(evaluator, risk_per_trade_pct=1,strategy_name="RSI5min30")
+algo = CTradingAlgo.CTradingAlgo(evaluator, risk_per_trade_pct=1,strategy_name="CStrat_MinMaxTrend")
 
 # Liste des symboles à analyser
 symbols = [
@@ -47,8 +47,6 @@ symbols = [
 ]
 
 symbols = [
-    "ATOMUSDC",
-    "PENGUUSDC",  # tu peux en commenter certains
     "SOLUSDC"
 ]
 

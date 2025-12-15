@@ -7,8 +7,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 import pandas as pd
 import re
 
-PANDA_DIR = "panda_results"
-#PANDA_DIR = "panda"
+#PANDA_DIR = "panda_results"
+PANDA_DIR = "panda"
 
 class PandaViewerApp:
     def __init__(self, root):

@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../indi
 
 import CRSICalculator
 import CTransformToPanda
-import CMinMaxTrend
+import CMinMaxTrend_V2 as CMinMaxTrend
 
 
 class StratState(Enum):
@@ -164,7 +164,7 @@ class CStrat_MinMaxTrend:
             p_init=-mean_abs_diff/1.5,  # pente basée sur la variabilité
             CstValideMinutes=10,
             name_slope_change="SlopeChange_+_y_P1",
-            threshold=0#mean_abs_diff*3  # seuil de dépassement basé sur la variabilité
+            mode_day=True
         )
         df = calc_max.get_df()
 

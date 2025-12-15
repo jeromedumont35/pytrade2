@@ -77,7 +77,7 @@ runner = CProd.CProd(
     days=nb_jours,                # <-- 3e paramètre : nombre de jours
     trader=trader,
     risk_per_trade_pct=montant,
-    strategy_name="CStrat_MinMaxTrend",
+    strategy_name="CStrat_SeuilMinuShort",
     fetcher=fetcher,
     interval="1m"
 )
