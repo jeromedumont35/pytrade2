@@ -29,9 +29,15 @@ class CLauncher:
 
         print(f"[LAUNCH] {' '.join(cmd)}")
 
-        subprocess.Popen(
-            cmd,
-            cwd=self.launcher_dir,
-            creationflags=subprocess.CREATE_NEW_CONSOLE,  # 👈 clé
-            shell=False
-        )
+        kwargs = {
+            "cwd": self.launcher_dir,
+            "shell": False
+        }
+
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+        else:
+            # équivalent logique sous Linux / macOS
+            kwargs["start_new_session"] = True
+
+        subprocess.Popen(cmd, **kwargs)
