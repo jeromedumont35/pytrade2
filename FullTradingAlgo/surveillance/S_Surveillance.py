@@ -3,9 +3,9 @@ import CUpdateCSVSeuilMin
 import sys
 import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from downloader import CBitgetDataFetcher
+from FullTradingAlgo.downloader import CBitgetDataFetcher
 
 my_fetcher = CBitgetDataFetcher.BitgetDataFetcher()
 updater = CUpdateCSVSeuilMin.CUpdateCSVSeuilMin("LauncherListe.csv", fetcher=my_fetcher, interval="1m")
