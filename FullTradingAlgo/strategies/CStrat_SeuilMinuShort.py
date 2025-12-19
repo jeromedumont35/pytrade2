@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import sys, os
 from enum import Enum, auto
 from datetime import datetime, timezone
@@ -9,8 +8,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import CTransformToPanda
 
 
+# ======================================================
+# 🧠 États
+# ======================================================
 class StratState(Enum):
-    IDLE = auto()
+    INIT_ORDER = auto()
+    CHECK_ORDER_REACHED = auto()
+    POSITION_OPENED = auto()
 
 
 class CStrat_SeuilMinuShort:
@@ -24,13 +28,10 @@ class CStrat_SeuilMinuShort:
         self.risk_per_trade_pct = risk_per_trade_pct
         self.csv_path = csv_path
 
-        # Chargement CSV
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV introuvable : {csv_path}")
 
         self.df_file = pd.read_csv(csv_path, sep=';')
-
-        # Nettoyage basique
         self.df_file.columns = self.df_file.columns.str.strip()
 
         self.transformer = CTransformToPanda.CTransformToPanda(
@@ -38,68 +39,79 @@ class CStrat_SeuilMinuShort:
             panda_dir="../panda"
         )
 
-        self.state = {}
+        self.state = {}  # symbol → état
+
+    # ======================================================
+    # 🔁 Gestion des états
+    # ======================================================
+    def _init_symbol_state(self, symbol):
+        if symbol not in self.state:
+            self.state[symbol] = {
+                "state": StratState.INIT_ORDER
+            }
+
+    def _set_state(self, symbol, new_state):
+        old_state = self.state[symbol]["state"]
+        if old_state != new_state:
+            print(f"[TRACE] {symbol}: STATE {old_state.name} -> {new_state.name}")
+        self.state[symbol]["state"] = new_state
+
+    def _reset_symbol_state(self, symbol):
+        self.state[symbol] = {"state": StratState.INIT_ORDER}
 
     # ======================================================
     # 🕒 Utils temps
     # ======================================================
     @staticmethod
     def parse_date(date_str):
-        """Parse une date au format JJ/MM/YYYY_HH (naïve)."""
         if date_str is None:
             return None
         date_str = str(date_str).strip()
-        if date_str == "" or date_str == "0":
+        if date_str in ("", "0"):
             return None
         return datetime.strptime(date_str, "%d/%m/%Y_%H")
 
     @staticmethod
     def compute_linear_value(t0, v0, t1, v1, t_now):
         total_sec = (t1 - t0).total_seconds()
-        if total_sec == 0:
+        if total_sec <= 0:
             return v0
         alpha = (t_now - t0).total_seconds() / total_sec
         return v0 + alpha * (v1 - v0)
 
     # ======================================================
-    # 📊 Indicators (placeholder)
+    # 📊 Indicators (aucun)
     # ======================================================
     def apply_indicators(self, df, is_btc_file):
         return df.copy()
 
     # ======================================================
-    # 🚀 Application stratégie
+    # 🚀 APPLY (machine à états)
     # ======================================================
     def apply(self, df, symbol, row, timestamp, open_positions, blocked):
         actions = []
+        self._init_symbol_state(symbol)
+        state = self.state[symbol]
 
-        if blocked:
+        if blocked or self.interface_trade is None:
             return actions
 
-        # index courant
         i = df.index.get_loc(timestamp)
 
-        # Annulation ordres ouverts
-        if self.interface_trade is not None:
-            self.interface_trade.cancel_all_open_orders(symbol)
-
-        # temps UTC actuel (minute près)
-        now_utc = datetime.now(timezone.utc).replace(second=0, microsecond=0)
-        now = now_utc.replace(tzinfo=None)
+        # Temps UTC (minute)
+        now = datetime.now(timezone.utc).replace(
+            second=0, microsecond=0
+        ).replace(tzinfo=None)
 
         # ==================================================
-        # 🔍 Récupération ligne CSV correspondant au symbole
+        # 🔍 Lecture CSV
         # ==================================================
         df_sym = self.df_file[self.df_file["symbol"] == symbol]
-
         if df_sym.empty:
-            return actions  # aucun seuil défini pour ce symbole
+            return actions
 
         csv_row = df_sym.iloc[0]
 
-        # ==================================================
-        # 📐 Calcul de la valeur courante interpolée
-        # ==================================================
         t0 = self.parse_date(csv_row.get("date0"))
         t1 = self.parse_date(csv_row.get("date1"))
 
@@ -112,7 +124,7 @@ class CStrat_SeuilMinuShort:
         except (TypeError, ValueError):
             return actions
 
-        current_value = self.compute_linear_value(
+        threshold_price = self.compute_linear_value(
             t0=t0,
             v0=v0,
             t1=t1,
@@ -121,17 +133,80 @@ class CStrat_SeuilMinuShort:
         )
 
         # ==================================================
-        # 📥 Action trading
+        # 🔎 Vérifier position réelle via Bitget
         # ==================================================
-        actions.append({
-            "action": "OPEN",
-            "symbol": symbol,
-            "side": "SHORT",
-            "price": current_value,
-            "sl": [],
-            "usdc": self.risk_per_trade_pct,
-            "reason": "PRICE_BELOW_TREND_-3pct",
-            "entry_index": i
-        })
+        position_info = self.interface_trade.get_position_info(symbol)
+
+        # ==================================================
+        # 🧠 MACHINE À ÉTATS
+        # ==================================================
+
+        # 1️⃣ INIT_ORDER → poser ordre short limite
+        if state["state"] == StratState.INIT_ORDER:
+
+            self.interface_trade.cancel_all_open_orders(symbol)
+
+            actions.append({
+                "action": "OPEN",
+                "symbol": symbol,
+                "side": "SELL_SHORT",
+                "price": threshold_price,
+                "sl": [],
+                "usdc": self.risk_per_trade_pct,
+                "reason": "CSV_SEUIL_INTERPOLATED",
+                "entry_index": i
+            })
+
+            state["expected_price"] = threshold_price
+            state["entry_index"] = i
+
+            self._set_state(symbol, StratState.CHECK_ORDER_REACHED)
+
+        # 2️⃣ CHECK_ORDER_REACHED → attendre exécution réelle
+        elif state["state"] == StratState.CHECK_ORDER_REACHED:
+
+            if position_info is not None:
+                print(f"✅ {symbol} POSITION OUVERTE (Bitget confirmé)")
+                state["entry_price"] = position_info["entry_price"]
+                state["side"] = position_info["side"]
+                self._set_state(symbol, StratState.POSITION_OPENED)
+
+            else :
+                self.interface_trade.cancel_all_open_orders(symbol)
+
+                actions.append({
+                    "action": "OPEN",
+                    "symbol": symbol,
+                    "side": "SELL_SHORT",
+                    "price": threshold_price,
+                    "sl": [],
+                    "usdc": self.risk_per_trade_pct,
+                    "reason": "CSV_SEUIL_INTERPOLATED",
+                    "entry_index": i
+                })
+
+                state["expected_price"] = threshold_price
+                state["entry_index"] = i
+
+        # 3️⃣ POSITION_OPENED → pour l’instant passif
+        elif state["state"] == StratState.POSITION_OPENED:
+
+            # Ici tu ajouteras plus tard TP / SL / timeout
+            pass
 
         return actions
+
+    # ======================================================
+    # 📡 Monitoring
+    # ======================================================
+    def get_symbol_states(self):
+        return {sym: st["state"].name for sym, st in self.state.items()}
+
+    def get_main_indicator(self):
+        # piloté par CSV → aucun indicateur graphique
+        return []
+
+
+if __name__ == "__main__":
+    strat = CStrat_SeuilMinuShort()
+    strat.transformer.process_all(strat.apply_indicators)
