@@ -108,7 +108,7 @@ class CStrat_SeuilMinuShort:
         # ==================================================
         df_sym = self.df_file[self.df_file["symbol"] == symbol]
         if df_sym.empty:
-            print('ici')
+            print(f")ici 2")
             return actions
 
         csv_row = df_sym.iloc[0]
@@ -117,14 +117,14 @@ class CStrat_SeuilMinuShort:
         t1 = self.parse_date(csv_row.get("date1"))
 
         if t0 is None or t1 is None:
-            print('la')
+            print(f"ici 1")
             return actions
 
         try:
             v0 = float(csv_row.get("val0"))
             v1 = float(csv_row.get("val1"))
         except (TypeError, ValueError):
-            print('le')
+            print(f"ici 2")
             return actions
 
         threshold_price = self.compute_linear_value(
