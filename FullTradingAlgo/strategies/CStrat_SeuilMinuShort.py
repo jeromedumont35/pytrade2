@@ -22,7 +22,7 @@ class CStrat_SeuilMinuShort:
     def __init__(self,
                  interface_trade=None,
                  risk_per_trade_pct: float = 0.1,
-                 csv_path: str = "../../surveillance/LauncherListe_updated.csv"):
+                 csv_path: str = "../../surveillance/LauncherListe.csv"):
 
         self.interface_trade = interface_trade
         self.risk_per_trade_pct = risk_per_trade_pct
