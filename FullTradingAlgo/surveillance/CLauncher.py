@@ -8,7 +8,8 @@ class CLauncher:
     """
     Lance S_Prod_Launcher.py :
     - Windows        → nouvelle console
-    - Linux / macOS  → nouvelle session
+    - Linux          → nouvelle fenêtre terminal (Terminator prioritaire)
+    - macOS          → nouvelle session
     - Termux         → nouvelle fenêtre tmux (auto start-server)
     """
 
@@ -27,6 +28,17 @@ class CLauncher:
 
         if not os.path.exists(self.script_path):
             raise FileNotFoundError(self.script_path)
+
+    # ------------------------------------------------------------------
+    # UTILS
+    # ------------------------------------------------------------------
+    def _which(self, exe):
+        """Retourne True si l'exécutable est présent"""
+        return subprocess.call(
+            ["which", exe],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        ) == 0
 
     # ------------------------------------------------------------------
     # TERMUX / TMUX
@@ -56,6 +68,39 @@ class CLauncher:
                 "-n", window_name,
                 shlex.join(cmd)
             ],
+            cwd=self.launcher_dir,
+            shell=False
+        )
+
+    # ------------------------------------------------------------------
+    # LINUX TERMINALS
+    # ------------------------------------------------------------------
+    def _launch_in_linux_terminal(self, cmd):
+        cmd_str = shlex.join(cmd)
+
+        if self._which("terminator"):
+            terminal_cmd = ["terminator", "-e", cmd_str]
+
+        elif self._which("gnome-terminal"):
+            terminal_cmd = ["gnome-terminal", "--", "bash", "-c", cmd_str]
+
+        elif self._which("konsole"):
+            terminal_cmd = ["konsole", "-e", cmd_str]
+
+        elif self._which("xterm"):
+            terminal_cmd = ["xterm", "-e", cmd_str]
+
+        else:
+            # fallback sans terminal graphique
+            subprocess.Popen(
+                cmd,
+                cwd=self.launcher_dir,
+                start_new_session=True
+            )
+            return
+
+        subprocess.Popen(
+            terminal_cmd,
             cwd=self.launcher_dir,
             shell=False
         )
@@ -93,10 +138,14 @@ class CLauncher:
             self._tmux_new_window(window_name, cmd)
             return
 
-        # ---- Linux / macOS ----
+        # ---- Linux ----
+        if sys.platform.startswith("linux"):
+            self._launch_in_linux_terminal(cmd)
+            return
+
+        # ---- macOS / fallback ----
         subprocess.Popen(
             cmd,
             cwd=self.launcher_dir,
-            shell=False,
             start_new_session=True
         )
