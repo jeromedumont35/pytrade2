@@ -106,13 +106,6 @@ class CStrat_SeuilMinuShort:
         # ==================================================
         # 🔍 Lecture CSV
         # ==================================================
-        print("CSV utilisé :", self.csv_path)
-        print("CSV abs path:", os.path.abspath(self.csv_path))
-        print("CWD :", os.getcwd())
-        print("CSV size :", len(self.df_file))
-        print("Symbols CSV :", self.df_file["symbol"].unique()[:10])
-        print("Symbol demandé :", symbol)
-
         df_sym = self.df_file[self.df_file["symbol"] == symbol]
         if df_sym.empty:
             print(f")ici 2")
