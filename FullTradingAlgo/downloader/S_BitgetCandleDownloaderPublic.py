@@ -156,12 +156,12 @@ class BitgetCandleDownloaderPublic:
 
 # === Exemple d'utilisation ===
 if __name__ == "__main__":
-    symbols = ["SWTCHUSDT"]
+    symbols = ["SOLUSDT"]
     interval = "1min"
     save_dir = "../raw"
 
-    start_time = datetime(2025, 10, 5, 1, 1)
-    end_time = datetime(2025, 10, 10, 1, 1)
+    start_time = datetime(2025, 12, 10, 0, 0)
+    end_time = datetime(2025, 12, 23, 13, 0)
 
     downloader = BitgetCandleDownloaderPublic(interval=interval, save_dir=save_dir)
 

@@ -1,5 +1,6 @@
 import pandas as pd
 from datetime import datetime, timezone
+from typing import Dict, Optional
 
 from CLauncher import CLauncher
 
@@ -14,25 +15,80 @@ class CheckCSVSeuilMin:
         # 🔒 Mémoire des symboles déjà lancés
         self.already_launched = set()
 
-    # -------------------------------------------------
+    # =================================================
+    # 🧰 UTILS
+    # =================================================
     @staticmethod
-    def parse_date(date_str):
-        """Parse une date au format JJ/MM/YYYY_HH (naïve)."""
+    def parse_date(date_str: str) -> Optional[datetime]:
         if date_str == "0" or str(date_str).strip() == "":
             return None
         return datetime.strptime(date_str, "%d/%m/%Y_%H")
 
-    # -------------------------------------------------
-    def compute_linear_value(self, t0, v0, t1, v1, t_now):
+    @staticmethod
+    def compute_linear_value(
+        t0: datetime, v0: float,
+        t1: datetime, v1: float,
+        t_now: datetime
+    ) -> float:
         total_sec = (t1 - t0).total_seconds()
-        if total_sec == 0:
+        if total_sec <= 0:
             return v0
         alpha = (t_now - t0).total_seconds() / total_sec
         return v0 + alpha * (v1 - v0)
 
-    # -------------------------------------------------
+    # =================================================
+    # 📄 CSV
+    # =================================================
+    def load_csv(self) -> pd.DataFrame:
+        return pd.read_csv(self.filename, sep=';')
+
+    # =================================================
+    # 📉 SEUILS
+    # =================================================
+    def build_thresholds(self, df: pd.DataFrame, now: datetime) -> Dict[str, float]:
+        """
+        Règle :
+        - seuil_49day != 0 → seuil statique
+        - sinon → interpolation date0/date1
+        """
+        seuils = {}
+
+        for _, row in df.iterrows():
+            symbol = row["symbol"]
+
+            seuil_static = float(row["seuil_49day"])
+            if seuil_static != 0:
+                seuils[symbol] = seuil_static
+                continue
+
+            seuil_dynamic = self.compute_dynamic_threshold(row, now)
+            if seuil_dynamic is not None:
+                seuils[symbol] = seuil_dynamic
+
+        return seuils
+
+    def compute_dynamic_threshold(self, row, now: datetime) -> Optional[float]:
+        if str(row["date0"]) == "0" or float(row["val0"]) == 0:
+            return None
+
+        t0 = self.parse_date(row["date0"])
+        t1 = self.parse_date(row["date1"])
+
+        if t0 is None or t1 is None:
+            return None
+
+        return self.compute_linear_value(
+            t0,
+            float(row["val0"]),
+            t1,
+            float(row["val1"]),
+            now
+        )
+
+    # =================================================
+    # 💰 PRICES
+    # =================================================
     def fetch_current_prices(self, symbols):
-        """Récupère les derniers prix via le fetcher."""
         df_last = self.fetcher.get_last_complete_kline(
             symbols,
             interval=self.interval
@@ -43,85 +99,61 @@ class CheckCSVSeuilMin:
             for _, row in df_last.iterrows()
         }
 
-    # -------------------------------------------------
-    def check_and_launch(self, amount=6, nb_days=1, trigger_pct=-14.0):
-        """
-        - Calcule seuil_minu interpolé (en mémoire)
-        - Calcule la variation %
-        - Lance le bot si variation <= trigger_pct
-        - Ignore les symboles déjà lancés
-        """
+    # =================================================
+    # 🚀 TRIGGER
+    # =================================================
+    def should_trigger(self, symbol: str, pct: float, trigger_pct: float) -> bool:
+        if symbol in self.already_launched:
+            print(f"--> {symbol} IGNORÉ (déjà lancé)")
+            return False
+        return pct > trigger_pct
 
-        df = pd.read_csv(self.filename, sep=';')
+    def trigger_bot(self, symbol: str, amount: float, nb_days: int, pct: float):
+        print(f"--> TRIGGER BOT pour {symbol} (Δ {pct:.2f}%)")
+        self.launcher.run_launcher(
+            amount=amount,
+            symbol=symbol,
+            nb_days=nb_days
+        )
+        self.already_launched.add(symbol)
 
-        now_utc = datetime.now(timezone.utc).replace(second=0, microsecond=0)
-        now = now_utc.replace(tzinfo=None)
+    # =================================================
+    # 🧠 MAIN
+    # =================================================
+    def check_and_launch(self, amount=6, nb_days=1, trigger_pct=-3.0):
 
-        # ─────────────────────────────
-        # 1. Calcul du seuil interpolé
-        # ─────────────────────────────
-        seuils = {}
+        df = self.load_csv()
 
-        for _, row in df.iterrows():
+        now = (
+            datetime.now(timezone.utc)
+            .replace(second=0, microsecond=0)
+            .replace(tzinfo=None)
+        )
 
-            if str(row["date0"]) == "0" or float(row["val0"]) == 0:
-                continue
+        seuils = self.build_thresholds(df, now)
 
-            t0 = self.parse_date(row["date0"])
-            t1 = self.parse_date(row["date1"])
+        if not seuils:
+            print("Aucun seuil valide trouvé.")
+            return
 
-            if t0 is None or t1 is None:
-                continue
-
-            v0 = float(row["val0"])
-            v1 = float(row["val1"])
-
-            seuils[row["symbol"]] = self.compute_linear_value(
-                t0, v0, t1, v1, now
-            )
-
-        # ─────────────────────────────
-        # 2. Récupération des prix
-        # ─────────────────────────────
         prices = self.fetch_current_prices(list(seuils.keys()))
 
         print("\n====== CHECK SEUIL MIN (%) ======\n")
 
-        # ─────────────────────────────
-        # 3. Calcul variation + trigger
-        # ─────────────────────────────
-        for symbol, seuil_minu in seuils.items():
+        for symbol, seuil in seuils.items():
 
-            if seuil_minu == 0 or symbol not in prices:
+            if seuil == 0 or symbol not in prices:
                 continue
 
             price_now = prices[symbol]
-            pct = ((price_now - seuil_minu) / seuil_minu) * 100
+            pct = ((price_now - seuil) / seuil) * 100
 
             print(
-                f"{symbol:20s} | prix = {price_now:.6f} | "
-                f"seuil = {seuil_minu:.6f} | Δ = {pct:+.2f}%"
+                f"{symbol:20s} | prix = {price_now:.8f} | "
+                f"seuil = {seuil:.8f} | Δ = {pct:+.2f}%"
             )
 
-            # ⛔ Déjà lancé → on ignore
-            if symbol in self.already_launched:
-                print(f"--> {symbol} IGNORÉ (déjà lancé)")
-                continue
-
-            # 🔥 CONDITION DE LANCEMENT
-            if pct > trigger_pct:
-                print(
-                    f"--> TRIGGER BOT pour {symbol} "
-                    f"(Δ {pct:.2f}%)"
-                )
-
-                self.launcher.run_launcher(
-                    amount=amount,
-                    symbol=symbol,
-                    nb_days=nb_days
-                )
-
-                # 🔐 Marquer comme lancé
-                self.already_launched.add(symbol)
+            if self.should_trigger(symbol, pct, trigger_pct):
+                self.trigger_bot(symbol, amount, nb_days, pct)
 
         print("\n=================================\n")
