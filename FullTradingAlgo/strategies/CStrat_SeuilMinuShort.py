@@ -34,6 +34,29 @@ class CStrat_SeuilMinuShort:
         self.df_file = pd.read_csv(csv_path, sep=';')
         self.df_file.columns = self.df_file.columns.str.strip()
 
+        # ==================================================
+        # 📌 Lecture CSV UNE SEULE FOIS – par symbole
+        # ==================================================
+        self.symbol_config = {}
+
+        for _, row in self.df_file.iterrows():
+            symbol = row.get("symbol")
+            if not isinstance(symbol, str):
+                continue
+
+            try:
+                seuil_49day = float(row.get("seuil_49day", 0))
+            except (TypeError, ValueError):
+                seuil_49day = 0.0
+
+            self.symbol_config[symbol] = {
+                "seuil_49day": seuil_49day,
+                "date0": row.get("date0"),
+                "val0": row.get("val0"),
+                "date1": row.get("date1"),
+                "val1": row.get("val1"),
+            }
+
         self.transformer = CTransformToPanda.CTransformToPanda(
             raw_dir="../raw",
             panda_dir="../panda"
@@ -46,9 +69,7 @@ class CStrat_SeuilMinuShort:
     # ======================================================
     def _init_symbol_state(self, symbol):
         if symbol not in self.state:
-            self.state[symbol] = {
-                "state": StratState.INIT_ORDER
-            }
+            self.state[symbol] = {"state": StratState.INIT_ORDER}
 
     def _set_state(self, symbol, new_state):
         old_state = self.state[symbol]["state"]
@@ -98,39 +119,46 @@ class CStrat_SeuilMinuShort:
 
         i = df.index.get_loc(timestamp)
 
-        # Temps UTC (minute)
         now = datetime.now(timezone.utc).replace(
             second=0, microsecond=0
         ).replace(tzinfo=None)
 
         # ==================================================
-        # 🔍 Lecture CSV
+        # 🔍 Lecture config symbole
         # ==================================================
-        df_sym = self.df_file[self.df_file["symbol"] == symbol]
-        if df_sym.empty:
+        cfg = self.symbol_config.get(symbol)
+        if cfg is None:
             return actions
 
-        csv_row = df_sym.iloc[0]
+        # ==================================================
+        # 🎯 Détermination du threshold_price
+        # ==================================================
 
-        t0 = self.parse_date(csv_row.get("date0"))
-        t1 = self.parse_date(csv_row.get("date1"))
+        # ✅ CAS 1 : seuil_49day fixe pour CE symbole
+        if cfg["seuil_49day"] != 0.0:
+            threshold_price = cfg["seuil_49day"]
 
-        if t0 is None or t1 is None:
-            return actions
+        # 🔁 CAS 2 : interpolation (logique inchangée)
+        else:
+            t0 = self.parse_date(cfg["date0"])
+            t1 = self.parse_date(cfg["date1"])
 
-        try:
-            v0 = float(csv_row.get("val0"))
-            v1 = float(csv_row.get("val1"))
-        except (TypeError, ValueError):
-            return actions
+            if t0 is None or t1 is None:
+                return actions
 
-        threshold_price = self.compute_linear_value(
-            t0=t0,
-            v0=v0,
-            t1=t1,
-            v1=v1,
-            t_now=now
-        )
+            try:
+                v0 = float(cfg["val0"])
+                v1 = float(cfg["val1"])
+            except (TypeError, ValueError):
+                return actions
+
+            threshold_price = self.compute_linear_value(
+                t0=t0,
+                v0=v0,
+                t1=t1,
+                v1=v1,
+                t_now=now
+            )
 
         # ==================================================
         # 🔎 Vérifier position réelle via Bitget
@@ -141,7 +169,7 @@ class CStrat_SeuilMinuShort:
         # 🧠 MACHINE À ÉTATS
         # ==================================================
 
-        # 1️⃣ INIT_ORDER → poser ordre short limite
+        # 1️⃣ INIT_ORDER
         if state["state"] == StratState.INIT_ORDER:
 
             self.interface_trade.cancel_all_open_orders(symbol)
@@ -153,7 +181,7 @@ class CStrat_SeuilMinuShort:
                 "price": threshold_price,
                 "sl": [],
                 "usdc": self.risk_per_trade_pct,
-                "reason": "CSV_SEUIL_INTERPOLATED",
+                "reason": "CSV_SEUIL",
                 "entry_index": i
             })
 
@@ -162,7 +190,7 @@ class CStrat_SeuilMinuShort:
 
             self._set_state(symbol, StratState.CHECK_ORDER_REACHED)
 
-        # 2️⃣ CHECK_ORDER_REACHED → attendre exécution réelle
+        # 2️⃣ CHECK_ORDER_REACHED
         elif state["state"] == StratState.CHECK_ORDER_REACHED:
 
             if position_info is not None:
@@ -171,7 +199,7 @@ class CStrat_SeuilMinuShort:
                 state["side"] = position_info["side"]
                 self._set_state(symbol, StratState.POSITION_OPENED)
 
-            else :
+            else:
                 self.interface_trade.cancel_all_open_orders(symbol)
 
                 actions.append({
@@ -181,17 +209,15 @@ class CStrat_SeuilMinuShort:
                     "price": threshold_price,
                     "sl": [],
                     "usdc": self.risk_per_trade_pct,
-                    "reason": "CSV_SEUIL_INTERPOLATED",
+                    "reason": "CSV_SEUIL",
                     "entry_index": i
                 })
 
                 state["expected_price"] = threshold_price
                 state["entry_index"] = i
 
-        # 3️⃣ POSITION_OPENED → pour l’instant passif
+        # 3️⃣ POSITION_OPENED
         elif state["state"] == StratState.POSITION_OPENED:
-
-            # Ici tu ajouteras plus tard TP / SL / timeout
             pass
 
         return actions
@@ -203,7 +229,6 @@ class CStrat_SeuilMinuShort:
         return {sym: st["state"].name for sym, st in self.state.items()}
 
     def get_main_indicator(self):
-        # piloté par CSV → aucun indicateur graphique
         return []
 
 

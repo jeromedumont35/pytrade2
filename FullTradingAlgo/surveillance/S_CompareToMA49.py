@@ -1,7 +1,9 @@
 import os
 import pandas as pd
 from FullTradingAlgo.surveillance.CGet50DaysHistory import CGet50DaysHistory
+import sys
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 CSV_PATH = "LauncherListe.csv"
 
