@@ -31,30 +31,29 @@ class CStrat_SeuilMinuShort:
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV introuvable : {csv_path}")
 
+        # Lecture initiale pour les colonnes autres que seuil_49day
         self.df_file = pd.read_csv(csv_path, sep=';')
         self.df_file.columns = self.df_file.columns.str.strip()
 
-        # ==================================================
-        # 📌 Lecture CSV UNE SEULE FOIS – par symbole
-        # ==================================================
         self.symbol_config = {}
-
         for _, row in self.df_file.iterrows():
             symbol = row.get("symbol")
             if not isinstance(symbol, str):
                 continue
 
             try:
-                seuil_49day = float(row.get("seuil_49day", 0))
-            except (TypeError, ValueError):
-                seuil_49day = 0.0
+                date0 = row.get("date0")
+                val0 = row.get("val0")
+                date1 = row.get("date1")
+                val1 = row.get("val1")
+            except Exception:
+                date0 = val0 = date1 = val1 = 0
 
             self.symbol_config[symbol] = {
-                "seuil_49day": seuil_49day,
-                "date0": row.get("date0"),
-                "val0": row.get("val0"),
-                "date1": row.get("date1"),
-                "val1": row.get("val1"),
+                "date0": date0,
+                "val0": val0,
+                "date1": date1,
+                "val1": val1
             }
 
         self.transformer = CTransformToPanda.CTransformToPanda(
@@ -124,22 +123,32 @@ class CStrat_SeuilMinuShort:
         ).replace(tzinfo=None)
 
         # ==================================================
-        # 🔍 Lecture config symbole
+        # 🔍 Lecture config symbole (autres colonnes)
         # ==================================================
         cfg = self.symbol_config.get(symbol)
         if cfg is None:
             return actions
 
         # ==================================================
-        # 🎯 Détermination du threshold_price
+        # ✅ Lecture dynamique du seuil_49day depuis CSV
         # ==================================================
+        try:
+            df_csv = pd.read_csv(self.csv_path, sep=';', dtype={"seuil_49day": str})
+            row_csv = df_csv.loc[df_csv["symbol"] == symbol]
+            if not row_csv.empty:
+                seuil_49day_str = row_csv["seuil_49day"].values[0]
+                try:
+                    threshold_price = float(seuil_49day_str)
+                except (ValueError, TypeError):
+                    threshold_price = 0.0
+            else:
+                threshold_price = 0.0
+        except Exception as e:
+            print(f"[WARN] Impossible de lire seuil_49day pour {symbol}: {e}")
+            threshold_price = 0.0
 
-        # ✅ CAS 1 : seuil_49day fixe pour CE symbole
-        if cfg["seuil_49day"] != 0.0:
-            threshold_price = cfg["seuil_49day"]
-
-        # 🔁 CAS 2 : interpolation (logique inchangée)
-        else:
+        # 🔁 CAS INTERPOLATION si seuil_49day = 0
+        if threshold_price == 0.0:
             t0 = self.parse_date(cfg["date0"])
             t1 = self.parse_date(cfg["date1"])
 
