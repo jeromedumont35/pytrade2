@@ -39,10 +39,11 @@ class CAnalyse1000:
         # -----------------------------
         # 1) Dernière bougie sous MA * 0.995
         # -----------------------------
+        low_now = df["low"].iloc[-1]
         close_now = df["close"].iloc[-1]
         ma_now    = df["ma"].iloc[-1]
 
-        crit_1 = close_now < ma_now * 0.995
+        crit_1 = low_now < ma_now * 0.995 and close_now < ma_now
 
         # -----------------------------
         # 2) Dernier close > MA en remontant depuis la fin
@@ -54,7 +55,7 @@ class CAnalyse1000:
                 print("❌ Aucun close > MA trouvé")
             return False
 
-        idx_last_sup = df_sup.index[-1]
+        idx_last_sup = df_sup.index[-1]- pd.Timedelta(minutes=15)  # sécurité -5 minutes
         pos_last_sup = df.index.get_loc(idx_last_sup)
 
         # -----------------------------
@@ -75,7 +76,8 @@ class CAnalyse1000:
         # -----------------------------
         # 4) low sous MA dans la zone
         # -----------------------------
-        crit_4 = (df_zone["low"] < df_zone["ma"]).any()
+        count_low_under_ma = (df_zone["low"] < df_zone["ma"]).sum()
+        crit_4 = count_low_under_ma > 0
 
         # -----------------------------
         # Trace compacte sur une ligne
@@ -88,8 +90,9 @@ class CAnalyse1000:
                 f"[detecte_casse_ma] "
                 f"C1(close<MA*0.995)={crit_1} | "
                 f"C3(nb_close_below={nb_close_below}) | "
-                f"C4(low<MA)={crit_4} | "
-                f"idx_last_sup={date_str}"
+                f"C4(low<MA)={count_low_under_ma} | "
+                f"idx_last_sup={date_str} | "
+                f"val_ma_last_sup={df_sup['ma'].iloc[-1]:.3e}"
             )
 
-        return crit_1 and crit_3 and crit_4
+        return crit_1 and crit_3 and crit_4, df_sup['ma'].iloc[-1]
