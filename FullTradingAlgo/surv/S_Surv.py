@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import time
 
 import pandas as pd
 from datetime import datetime, timezone
@@ -135,8 +136,9 @@ if __name__ == "__main__":
         interval=INTERVAL
     )
 
-    checker.check_and_launch(
-        amount=6,
-        nb_days=1,
-        trigger_pct=-3.0
-    )
+    while True:
+        checker.check_and_launch(amount=6,nb_days=1,trigger_pct=-3.0)
+        time.sleep(60)
+
+
+

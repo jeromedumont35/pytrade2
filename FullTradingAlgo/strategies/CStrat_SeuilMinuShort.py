@@ -22,7 +22,7 @@ class CStrat_SeuilMinuShort:
     def __init__(self,
                  interface_trade=None,
                  risk_per_trade_pct: float = 0.1,
-                 csv_path: str = "../../surveillance/LauncherListe.csv"):
+                 csv_path: str = "../../surv/Entry.csv"):
 
         self.interface_trade = interface_trade
         self.risk_per_trade_pct = risk_per_trade_pct
@@ -133,10 +133,10 @@ class CStrat_SeuilMinuShort:
         # ✅ Lecture dynamique du seuil_49day depuis CSV
         # ==================================================
         try:
-            df_csv = pd.read_csv(self.csv_path, sep=';', dtype={"seuil_49day": str})
+            df_csv = pd.read_csv(self.csv_path, sep=';', dtype={"entry": str})
             row_csv = df_csv.loc[df_csv["symbol"] == symbol]
             if not row_csv.empty:
-                seuil_49day_str = row_csv["seuil_49day"].values[0]
+                seuil_49day_str = row_csv["entry"].values[0]
                 try:
                     threshold_price = float(seuil_49day_str)
                 except (ValueError, TypeError):

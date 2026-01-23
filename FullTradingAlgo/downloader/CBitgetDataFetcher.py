@@ -33,6 +33,47 @@ class BitgetDataFetcher:
         df["moy_l_h_e_c"] = (df["open"] + df["close"] + df["high"] + df["low"]) / 4
         return df[["open", "high", "low", "close", "volume", "moy_l_h_e_c"]]
 
+    def _fetch_klines3(self, symbol, interval, limit=1000, max_retries=3):
+        """
+        Récupère les dernières bougies du symbole et intervalle donné,
+        sans start_time ni end_time. Par défaut jusqu'à 'limit' bougies.
+        """
+        if interval not in self.INTERVAL_MAP:
+            raise ValueError(f"Interval '{interval}' non supporté")
+
+        granularity = self.INTERVAL_MAP[interval]
+        all_candles = []
+
+        params = {
+            "symbol": symbol,
+            "granularity": granularity,
+            "productType": "usdt-futures",
+            "limit": limit
+        }
+
+        for attempt in range(max_retries):
+            try:
+                r = requests.get(self.BASE_URL, params=params, timeout=(3, 5))
+                r.raise_for_status()
+                data = r.json()
+                break
+            except Exception as e:
+                print(f"[{symbol}] Erreur réseau ({attempt + 1}/{max_retries}) : {e}")
+                time.sleep(1)
+        else:
+            print(f"❌ Impossible de récupérer les bougies pour {symbol}")
+            return pd.DataFrame()
+
+        if "data" not in data or not data["data"]:
+            print(f"⚠️ Aucun retour pour {symbol}")
+            return pd.DataFrame()
+
+        # Tri chronologique
+        candles = sorted(data["data"], key=lambda x: int(x[0]))
+        df = self._prepare_dataframe(candles)
+        df["symbol"] = symbol
+        return df
+
     def _fetch_klines(self, symbol, interval, start_time, end_time, max_retries=3):
         """
         Récupère les bougies 1 minute de Bitget entre start_time et end_time,
