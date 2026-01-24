@@ -22,6 +22,7 @@ class CAnalyse1000:
         Nouvelle logique :
         1) Dernier close < MA * 0.995
         2) Recherche depuis la fin du dernier close > MA (idx_last_sup)
+        2bis) idx_last_sup doit dater de moins de 10 minutes
         3) Dans les nb_minutes_before avant idx_last_sup :
            - tous les closes > MA
            - au moins un low < MA
@@ -55,7 +56,18 @@ class CAnalyse1000:
                 print("❌ Aucun close > MA trouvé")
             return False
 
-        idx_last_sup = df_sup.index[-1]- pd.Timedelta(minutes=15)  # sécurité -5 minutes
+        # -----------------------------
+        # 2bis) Dernier close > MA doit dater de moins de 10 minutes
+        # -----------------------------
+        last_df_time = df.index[-1]
+        last_sup_time = df_sup.index[-1]
+
+        if last_df_time - last_sup_time > pd.Timedelta(minutes=10):
+            if verbose:
+                print("❌ Dernier close > MA trop ancien (>10 min)")
+            return False
+
+        idx_last_sup = last_sup_time - pd.Timedelta(minutes=15)  # sécurité
         pos_last_sup = df.index.get_loc(idx_last_sup)
 
         # -----------------------------
@@ -95,4 +107,4 @@ class CAnalyse1000:
                 f"val_ma_last_sup={df_sup['ma'].iloc[-1]:.3e}"
             )
 
-        return crit_1 and crit_3 and crit_4, df_sup['ma'].iloc[-1]
+        return crit_1 and crit_3 and crit_4, df_sup["ma"].iloc[-1]
