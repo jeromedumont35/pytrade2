@@ -43,7 +43,7 @@ LIMIT = 1000
 SLEEP_BETWEEN_SYMBOLS = 0.1
 SLEEP_BETWEEN_LOOPS = 0
 
-MA_PERIODS = [50, 100, 200, 250]
+MA_PERIODS = [100]
 
 CSV_PATH = "Entry.csv"
 CSV_COLUMNS = ["symbol", "entry", "tp1", "tp2", "tp3", "sl"]
@@ -57,7 +57,7 @@ CSV_COLUMNS = ["symbol", "entry", "date0", "val0", "date1", "val1", "ma"]
 
 def write_signal_csv(symbol, val):
     # val formaté en scientifique 3 chiffres après le point
-    entry_val = f"{val:.3e}"
+    # entry_val = f"{val:.3e}"
 
     # Nouvelle ligne à écrire : dates et valeurs par défaut = 0
     new_row = {
@@ -67,7 +67,7 @@ def write_signal_csv(symbol, val):
         "val0": 0,
         "date1": 0,
         "val1": 0,
-        "ma": 0
+        "ma": val
     }
 
     if os.path.exists(CSV_PATH):
@@ -153,7 +153,7 @@ while True:
                     print(f"✅ SIGNAL détecté sur {symbol} (MA{ma_period})")
 
                     # écrire Entry.csv
-                    write_signal_csv(symbol, val)
+                    write_signal_csv(symbol, "1m 100")
 
                     # ne plus retester ce symbole
                     symbols_to_skip.add(symbol)
