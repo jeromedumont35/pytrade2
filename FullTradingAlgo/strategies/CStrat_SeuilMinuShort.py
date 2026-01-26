@@ -209,6 +209,10 @@ class CStrat_SeuilMinuShort:
                 self._set_state(symbol, StratState.POSITION_OPENED)
 
             else:
+
+                if not self.interface_trade.has_pending_order(symbol):
+                    sys.exit(0)
+                 
                 self.interface_trade.cancel_all_open_orders(symbol)
 
                 actions.append({
