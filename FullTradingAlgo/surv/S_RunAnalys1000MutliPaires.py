@@ -141,11 +141,9 @@ while True:
             for ma_period in MA_PERIODS:
                 print(f"  ➜ Test MA{ma_period}")
 
-                is_valid, val = analyseur.detecte_casse_ma(
+                is_valid = analyseur.detecte_atteint_ma(
                     df,
-                    ma_period=ma_period,
-                    prct_below_max=0.005,
-                    nb_minutes_before=50,
+                    ma_period=ma_period
                     verbose=True
                 )
 
