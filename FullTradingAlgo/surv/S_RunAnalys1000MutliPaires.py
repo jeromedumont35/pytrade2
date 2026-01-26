@@ -143,7 +143,7 @@ while True:
 
                 is_valid = analyseur.detecte_atteint_ma(
                     df,
-                    ma_period=ma_period
+                    ma_period=ma_period,
                     verbose=True
                 )
 
