@@ -62,7 +62,7 @@ def write_signal_csv(symbol, val):
     # Nouvelle ligne à écrire : dates et valeurs par défaut = 0
     new_row = {
         "symbol": symbol,
-        "entry": entry_val,
+        "entry": 0,
         "date0": 0,
         "val0": 0,
         "date1": 0,
