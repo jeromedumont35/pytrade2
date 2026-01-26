@@ -57,6 +57,20 @@ class COrders_Bitget:
         except Exception as e:
             print(f"❌ Impossible de définir le levier pour {symbol_ccxt} : {e}")
 
+        # ===== Vérifier s'il existe un ordre en attente =====
+    def has_pending_order(self, symbol: str) -> bool:
+        """
+        Vérifie s'il existe au moins un ordre en attente (LIMIT, STOP, TP/SL)
+        pour le symbole donné.
+        """
+        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        try:
+            open_orders = self.client.fetch_open_orders(symbol_ccxt)
+            return bool(open_orders)
+        except Exception as e:
+            print(f"❌ Erreur lors de la vérification des ordres en attente sur {symbol_ccxt} : {e}")
+            return False
+            
     # ===== Passer un ordre =====
     def open_position(self, symbol: str, side: str, usdt_amount: float, price=None):
         """
