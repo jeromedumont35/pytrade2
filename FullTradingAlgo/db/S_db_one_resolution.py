@@ -7,6 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from CFetcherMultiSymbols import CFetcherMultiSymbols
 from FullTradingAlgo.downloader import CBitgetDataFetcher
 from CPriceDatabase import CPriceDatabase
+from CRSIDatabase import CRSIDatabase
 
 
 # ==========================================================
@@ -48,7 +49,7 @@ def main():
 
     # 🔹 Récupérer les symboles USDT et limiter à 5 pour test
     symbols = get_usdt_futures_symbols()
-    symbols = symbols[:5]
+    symbols = symbols[:2]
 
     print(f"Symbols utilisés ({len(symbols)}): {symbols}")
 
@@ -65,22 +66,37 @@ def main():
     data = fetcher_multi.fetch(symbols)
 
     # 🔹 Gestion base de données
-    db_manager = CPriceDatabase()
+    db_price = CPriceDatabase()
 
     # 1️⃣ Sauvegarde CSV
-    db_manager.save(data, interval)
+    db_price.save(data, interval)
 
     # 2️⃣ Chargement dans DB
-    DB = db_manager.load(interval)
+    DB = db_price.load(interval)
 
     # 3️⃣ Exemple d’accès : premier symbole de la liste
     first_symbol = symbols[0]
-
     btc_close = DB[first_symbol][(interval, "close")]
     btc_high = DB[first_symbol][(interval, "high")]
 
     print(f"{first_symbol} - dernier close: {btc_close.iloc[-1]}")
     print(f"{first_symbol} - dernier high: {btc_high.iloc[-1]}")
+
+    rsi_period = 5
+
+    db_rsi = CRSIDatabase()
+    # 1️⃣ Calcul et sauvegarde RSI depuis data["close"]
+    datasets_rsi = db_rsi.save_rsi_from_data(data, interval, rsi_period)
+
+    # 2️⃣ Chargement dans DB
+    DB = db_rsi.load_rsi(interval, rsi_period)
+
+    # 3️⃣ Accès au RSI
+    first_symbol = list(data["close"].columns)[0]
+    rsi_series = DB[first_symbol][(interval, f"RSI{rsi_period}")]
+    print(rsi_series.tail())
+
+
 
 
 # ==========================================================
