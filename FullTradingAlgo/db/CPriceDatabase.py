@@ -52,7 +52,7 @@ class CPriceDatabase:
     # ======================================================
     def load(self, resolution: str):
 
-        global DB
+        DB = {}
 
         prefix = f"data_{resolution}_"
 
