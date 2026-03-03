@@ -3,11 +3,6 @@ import glob
 import pandas as pd
 from datetime import datetime
 
-# ==========================================================
-# GLOBAL DATABASE
-# ==========================================================
-DB = {}
-
 class CRSIDatabase:
 
     EXT = ".csv"
@@ -84,7 +79,7 @@ class CRSIDatabase:
     # LOAD RSI INTO DB
     # ======================================================
     def load_rsi(self, resolution: str, rsi_period: int):
-        global DB
+        DB = {}
 
         prefix = f"data_{resolution}_"
         price_type = f"RSI{rsi_period}"
