@@ -46,7 +46,7 @@ class CRSIDatabase:
             print("No close data to compute RSI")
             return None
 
-        prefix = f"data_{resolution}_"
+        prefix = f"{resolution}_"
 
         # Supprimer anciens fichiers RSI pour cette période
         pattern = f"{prefix}rsi{rsi_period}_*{self.EXT}"
@@ -81,7 +81,7 @@ class CRSIDatabase:
     def load_rsi(self, resolution: str, rsi_period: int):
         DB = {}
 
-        prefix = f"data_{resolution}_"
+        prefix = f"{resolution}_"
         price_type = f"RSI{rsi_period}"
 
         files = glob.glob(f"{prefix}rsi{rsi_period}_*{self.EXT}")
