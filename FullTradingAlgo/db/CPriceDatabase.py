@@ -22,7 +22,7 @@ class CPriceDatabase:
     # ======================================================
     def save(self, datasets: dict, resolution: str):
 
-        prefix = f"data_{resolution}_"
+        prefix = f"{resolution}_"
 
         # Supprimer anciens fichiers de cette résolution
         for f in glob.glob(f"{prefix}*{self.EXT}"):
@@ -54,7 +54,7 @@ class CPriceDatabase:
 
         DB = {}
 
-        prefix = f"data_{resolution}_"
+        prefix = f"{resolution}_"
 
         datasets = {}
 
