@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+
 class CTestRSI5Min_MADays:
 
     def __init__(self):
@@ -36,26 +37,58 @@ class CTestRSI5Min_MADays:
         return np.array(rsi_values)
 
 
-    def get_rsi_5m_history(self, df, period=14, history=15):
+    def detect_rsi_recovery_pattern(self, df):
 
-        if len(df) < (period * 5 + 10):
-            return None
-
-        # closes des bougies 5m terminées
         closes_5m = df[df.index.minute % 5 == 0]["close"].copy()
+        lows_5m = df[df.index.minute % 5 == 0]["low"].copy()
 
         last_time = df.index[-1]
 
         # ajouter la bougie 5m en cours
         if last_time.minute % 5 != 0:
             closes_5m.loc[last_time] = df["close"].iloc[-1]
+            lows_5m.loc[last_time] = df["low"].iloc[-1]
 
-        rsi_series = self.compute_rsi_series(closes_5m, period)
+        rsi_series = self.compute_rsi_series(closes_5m, 5)
 
-        if len(rsi_series) < history:
-            return rsi_series
+        if len(rsi_series) < 10:
+            return False, None
 
-        return rsi_series[-history:]
+        rsi_series = pd.Series(
+            rsi_series,
+            index=closes_5m.index[-len(rsi_series):]
+        )
+
+        # recherche RSI < 6
+        below6 = rsi_series[rsi_series < 6]
+
+        if len(below6) == 0:
+            return False, None
+
+        last_below6_time = below6.index[-1]
+
+        # chercher RSI > 20 après
+        after = rsi_series[rsi_series.index > last_below6_time]
+
+        above20 = after[after > 20]
+
+        if len(above20) == 0:
+            return False, None
+
+        first_above20_time = above20.index[0]
+
+        # calcul du low minimum entre les deux
+        window_lows = lows_5m[
+            (lows_5m.index >= last_below6_time) &
+            (lows_5m.index <= first_above20_time)
+        ]
+
+        if len(window_lows) == 0:
+            return False, None
+
+        min_low = window_lows.min()
+
+        return True, min_low
 
 
     def realiser(self, DB, dfoneminute, symbol):
@@ -70,13 +103,14 @@ class CTestRSI5Min_MADays:
 
         last_close = dfoneminute["close"].iloc[-1]
 
-        rsi_hist = self.get_rsi_5m_history(dfoneminute, period=5, history=15)
+        # détection pattern RSI
+        pattern_ok, min_low = self.detect_rsi_recovery_pattern(dfoneminute)
 
-        if rsi_hist is None or len(rsi_hist) < 10:
+        if not pattern_ok:
             return False
 
-        # condition RSI
-        rsi_condition = np.any(rsi_hist[-10:] < 6)
+        # condition prix sous le low
+        price_break_condition = last_close < min_low
 
         # périodes MA
         ma_periods = [9, 19, 49]
@@ -97,11 +131,12 @@ class CTestRSI5Min_MADays:
             if ma <= last_close <= ma * 1.03:
                 price_condition = True
 
-        if rsi_condition and price_condition:
+        if price_condition and price_break_condition:
 
             print(
                 f"{symbol} SIGNAL : "
-                f"RSI5m<6 dans les 10 derniers | "
+                f"RSI<6 puis >20 | "
+                f"break low={min_low:.8f} | "
                 f"prix={last_close:.8f} | "
                 f"MA(days)={ma_values}"
             )
