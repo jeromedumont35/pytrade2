@@ -10,6 +10,7 @@ from CFetcherMultiSymbols import CFetcherMultiSymbols
 from FullTradingAlgo.downloader import CBitgetDataFetcher
 from CPriceDatabase import CPriceDatabase
 from CRSIDatabase import CRSIDatabase
+from CTestOneSymbol import CTestOneSymbol
 
 
 # ==========================================================
@@ -118,7 +119,7 @@ def check_and_update_files():
 
 # 🔹 Récupérer les symbols
 symbols = get_usdt_futures_symbols()
-symbols = symbols[:2]  # limiter pour test
+symbols = symbols[:100]  # limiter pour test
 print(f"Symbols utilisés ({len(symbols)}): {symbols}")
 
 # 🔹 Intervals utilisés
@@ -129,6 +130,7 @@ print(f"Intervals configurés: {available_intervals}")
 fetcher = CBitgetDataFetcher.BitgetDataFetcher()
 l_PriceDatabase = CPriceDatabase()
 l_RSIDatabase = CRSIDatabase()
+l_TestOneSymbol = CTestOneSymbol();
 
 l_rsiperiod = 5
 
@@ -178,10 +180,12 @@ while True:
                 limit=1000
             )
 
+            l_TestOneSymbol.realiser(DB, df, symbol)
+
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
                   f"Symbol: {symbol}, bougies récupérées: {len(df)}")
 
         except Exception as e:
             print(f"Erreur fetch pour {symbol}: {e}")
 
-    time.sleep(60)
+    #time.sleep(60)

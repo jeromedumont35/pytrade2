@@ -49,7 +49,7 @@ def main():
 
     # 🔹 Récupérer les symboles USDT et limiter à 5 pour test
     symbols = get_usdt_futures_symbols()
-    symbols = symbols[:2]
+    symbols = symbols[:100]
 
     print(f"Symbols utilisés ({len(symbols)}): {symbols}")
 
@@ -63,7 +63,7 @@ def main():
     )
 
     # 🔹 Récupération des données
-    data = fetcher_multi.fetch(symbols)
+    data = fetcher_multi.fetch(symbols, sleep_between_symbols=0)
 
     # 🔹 Gestion base de données
     db_price = CPriceDatabase()
