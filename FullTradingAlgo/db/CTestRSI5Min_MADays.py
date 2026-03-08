@@ -31,7 +31,7 @@ class CTestRSI5Min_MADays:
         # -----------------------------
         # construction vraies bougies 5m
         # -----------------------------
-        df_5m = df.resample("5T").agg({
+        df_5m = df.resample("5min").agg({
             "open": "first",
             "high": "max",
             "low": "min",
@@ -44,7 +44,7 @@ class CTestRSI5Min_MADays:
         # ajout bougie 5m courante
         # -----------------------------
         last_time = df.index[-1]
-        current_bucket = last_time.floor("5T")
+        current_bucket = last_time.floor("5min")
 
         df_current = df[df.index >= current_bucket]
 
@@ -78,22 +78,22 @@ class CTestRSI5Min_MADays:
         print(f"RSI courant (5m en cours) : {current_rsi:.2f}")
 
         # -----------------------------
-        # DETECTION PATTERN CORRIGEE
+        # limiter aux 20 derniers RSI
         # -----------------------------
+        recent_rsi = rsi_series.tail(20)
 
-        rsi_prev = rsi_series.shift(1)
+        rsi_prev = recent_rsi.shift(1)
 
-        cross_below6 = (rsi_prev >= 6) & (rsi_series < 6)
-        cross_above20 = (rsi_prev <= 20) & (rsi_series > 20)
+        cross_below6 = (rsi_prev >= 6) & (recent_rsi < 6)
 
-        below6_times = rsi_series[cross_below6].index
+        below6_times = recent_rsi[cross_below6].index
 
         if len(below6_times) == 0:
             return False, None
 
         last_below6_time = below6_times[-1]
 
-        after = rsi_series[rsi_series.index > last_below6_time]
+        after = recent_rsi[recent_rsi.index > last_below6_time]
 
         cross_above20_after = after[
             (after.shift(1) <= 20) & (after > 20)
