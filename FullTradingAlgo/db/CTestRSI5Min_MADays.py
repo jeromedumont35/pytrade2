@@ -26,11 +26,43 @@ class CTestRSI5Min_MADays:
         return rsi.dropna()
 
 
+    def compute_reversal_score(
+        self,
+        min_rsi,
+        rsi_peak,
+        bars_recovery,
+        bars_under6,
+        flush_distance
+    ):
+
+        score = 0
+
+        # profondeur RSI
+        score_depth = max(0, min((6 - min_rsi) / 6, 1))
+        score += score_depth * 30
+
+        # force du rebond
+        score_rebound = max(0, min((rsi_peak - 20) / 20, 1))
+        score += score_rebound * 20
+
+        # vitesse rebond
+        score_speed = max(0, 1 - bars_recovery / 10)
+        score += score_speed * 15
+
+        # durée capitulation
+        score_duration = min(bars_under6 / 6, 1)
+        score += score_duration * 10
+
+        # flush final
+        score_flush = max(0, min(flush_distance / 0.01, 1))
+        score += score_flush * 25
+
+        return round(score)
+
+
     def detect_rsi_recovery_pattern(self, df):
 
-        # -----------------------------
-        # construction vraies bougies 5m
-        # -----------------------------
+        # bougies 5 minutes
         df_5m = df.resample("5min").agg({
             "open": "first",
             "high": "max",
@@ -40,9 +72,7 @@ class CTestRSI5Min_MADays:
 
         df_5m = df_5m.dropna()
 
-        # -----------------------------
-        # ajout bougie 5m courante
-        # -----------------------------
+        # bougie 5m en cours
         last_time = df.index[-1]
         current_bucket = last_time.floor("5min")
 
@@ -60,26 +90,12 @@ class CTestRSI5Min_MADays:
         closes_5m = df_5m["close"]
         lows_5m = df_5m["low"]
 
-        # -----------------------------
-        # calcul RSI
-        # -----------------------------
         rsi_series = self.compute_rsi_series(closes_5m, 5)
 
-        if len(rsi_series) < 3:
-            return False, None
+        if len(rsi_series) < 20:
+            return False, None, None
 
-        # -----------------------------
-        # affichage RSI
-        # -----------------------------
-        last_rsi_complete = rsi_series.iloc[-2]
-        current_rsi = rsi_series.iloc[-1]
-
-        print(f"RSI complet précédent : {last_rsi_complete:.2f}")
-        print(f"RSI courant (5m en cours) : {current_rsi:.2f}")
-
-        # -----------------------------
-        # limiter aux 20 derniers RSI
-        # -----------------------------
+        # RSI récents
         recent_rsi = rsi_series.tail(20)
 
         rsi_prev = recent_rsi.shift(1)
@@ -89,35 +105,63 @@ class CTestRSI5Min_MADays:
         below6_times = recent_rsi[cross_below6].index
 
         if len(below6_times) == 0:
-            return False, None
+            return False, None, None
 
         last_below6_time = below6_times[-1]
 
-        after = recent_rsi[recent_rsi.index > last_below6_time]
+        after = rsi_series[rsi_series.index > last_below6_time]
 
         cross_above20_after = after[
             (after.shift(1) <= 20) & (after > 20)
         ]
 
         if len(cross_above20_after) == 0:
-            return False, None
+            return False, None, None
 
         first_above20_time = cross_above20_after.index[0]
 
-        # -----------------------------
-        # calcul du low minimum
-        # -----------------------------
-        window_lows = lows_5m[
-            (lows_5m.index >= last_below6_time) &
-            (lows_5m.index <= first_above20_time)
-        ]
+        # LOW1 = min low entre RSI<6 et maintenant
+        window_lows = lows_5m[lows_5m.index >= last_below6_time]
 
         if len(window_lows) == 0:
-            return False, None
+            return False, None, None
 
-        min_low = window_lows.min()
+        low1 = window_lows.min()
 
-        return True, min_low
+        last_close = closes_5m.iloc[-1]
+
+        if last_close >= low1:
+            return False, None, None
+
+        # -------------------------
+        # Calcul métriques pour score
+        # -------------------------
+
+        rsi_window = rsi_series[
+            (rsi_series.index >= last_below6_time)
+        ]
+
+        min_rsi = rsi_window.min()
+        rsi_peak = rsi_window.max()
+
+        bars_recovery = (
+            rsi_series.index.get_loc(first_above20_time)
+            - rsi_series.index.get_loc(last_below6_time)
+        )
+
+        bars_under6 = (rsi_window < 6).sum()
+
+        flush_distance = (low1 - last_close) / low1
+
+        score = self.compute_reversal_score(
+            min_rsi,
+            rsi_peak,
+            bars_recovery,
+            bars_under6,
+            flush_distance
+        )
+
+        return True, low1, score
 
 
     def realiser(self, DB, dfoneminute, symbol):
@@ -132,12 +176,10 @@ class CTestRSI5Min_MADays:
 
         last_close = dfoneminute["close"].iloc[-1]
 
-        pattern_ok, min_low = self.detect_rsi_recovery_pattern(dfoneminute)
+        pattern_ok, low1, score = self.detect_rsi_recovery_pattern(dfoneminute)
 
         if not pattern_ok:
             return False
-
-        price_break_condition = last_close < min_low
 
         ma_periods = [9, 19, 49]
 
@@ -157,13 +199,13 @@ class CTestRSI5Min_MADays:
             if ma <= last_close <= ma * 1.03:
                 price_condition = True
 
-        if price_condition and price_break_condition:
+        if price_condition:
 
             print(
                 f"{symbol} SIGNAL : "
-                f"RSI<6 puis >20 | "
-                f"break low={min_low:.8f} | "
+                f"break low1={low1:.8f} | "
                 f"prix={last_close:.8f} | "
+                f"score={score}/100 | "
                 f"MA(days)={ma_values}"
             )
 
