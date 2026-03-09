@@ -182,10 +182,8 @@ while True:
 
             l_TestOneSymbol.realiser(DB, df, symbol)
 
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
-                  f"Symbol: {symbol}, bougies récupérées: {len(df)}")
+            #print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+            #      f"Symbol: {symbol}, bougies récupérées: {len(df)}")
 
         except Exception as e:
             print(f"Erreur fetch pour {symbol}: {e}")
-
-    #time.sleep(60)
