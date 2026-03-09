@@ -98,7 +98,7 @@ def check_and_update_files():
 
     if changed_intervals:
         print(f"⚠ Intervals modifiés détectés: {changed_intervals}")
-        sleep(2)
+        time.sleep(2)
         for interval in changed_intervals:
             if interval in available_intervals:
                 reload_interval(
