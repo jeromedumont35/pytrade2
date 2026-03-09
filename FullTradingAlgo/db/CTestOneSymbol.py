@@ -19,7 +19,7 @@ class CTestOneSymbol:
 
     def realiser(self, DB, dfoneminute, symbol):
 
-        print(f"Analyse du symbole : {symbol}")
+        #print(f"Analyse du symbole : {symbol}")
 
         result = self.test_rsi5min_madays.realiser(DB, dfoneminute, symbol)
 
