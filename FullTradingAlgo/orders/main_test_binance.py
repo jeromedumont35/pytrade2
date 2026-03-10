@@ -42,7 +42,7 @@ def lire_identifiants(filepath: str) -> dict:
 if __name__ == "__main__":
 
     # chemin du fichier
-    filepath = "binance_api.txt"
+    filepath = "../../../Bitget_jdu.key"
 
     creds = lire_identifiants(filepath)
 
