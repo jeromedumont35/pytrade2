@@ -16,12 +16,10 @@ from CTestOneSymbol import CTestOneSymbol
 # ==========================================================
 # FONCTION POUR RÉCUPÉRER LES SYMBOLS USDT
 # ==========================================================
-def get_usdt_futures_symbols():
-    params = {"productType": "usdt-futures"}
-
+def get_common_spot_symbols():
+    # ---------- BITGET SPOT ----------
     r = requests.get(
-        "https://api.bitget.com/api/v2/mix/market/contracts",
-        params=params,
+        "https://api.bitget.com/api/v2/spot/public/symbols",
         timeout=10
     )
     r.raise_for_status()
@@ -30,11 +28,34 @@ def get_usdt_futures_symbols():
     if "data" not in data:
         raise Exception(f"Erreur API Bitget symbols : {data}")
 
-    return sorted(
-        s["symbol"]
+    bitget_symbols = {
+        f"{s['baseCoin']}USDT"
         for s in data["data"]
         if s.get("quoteCoin") == "USDT"
+    }
+
+    # ---------- BINANCE SPOT ----------
+    r = requests.get(
+        "https://api.binance.com/api/v3/exchangeInfo",
+        timeout=10
     )
+    r.raise_for_status()
+    data = r.json()
+
+    if "symbols" not in data:
+        raise Exception(f"Erreur API Binance symbols : {data}")
+
+    binance_symbols = {
+        s["symbol"]
+        for s in data["symbols"]
+        if s.get("quoteAsset") == "USDT"
+        and s.get("status") == "TRADING"
+    }
+
+    # ---------- INTERSECTION ----------
+    common = sorted(bitget_symbols.intersection(binance_symbols))
+
+    return common
 
 
 # ==========================================================
@@ -98,7 +119,7 @@ def check_and_update_files():
 
     if changed_intervals:
         print(f"⚠ Intervals modifiés détectés: {changed_intervals}")
-        time.sleep(2)
+        time.sleep(40)
         for interval in changed_intervals:
             if interval in available_intervals:
                 reload_interval(
@@ -118,8 +139,8 @@ def check_and_update_files():
 # ==========================================================
 
 # 🔹 Récupérer les symbols
-symbols = get_usdt_futures_symbols()
-symbols = symbols[:100]  # limiter pour test
+symbols = get_common_spot_symbols()
+#symbols = symbols[:100]  # limiter pour test
 print(f"Symbols utilisés ({len(symbols)}): {symbols}")
 
 # 🔹 Intervals utilisés
