@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta, timezone
 
 class BitgetDataFetcher:
-    BASE_URL = "https://api.bitget.com/api/v2/mix/market/candles"
+    BASE_URL = "https://api.bitget.com/api/v2/spot/market/candles"
 
     # Intervalles valides selon Bitget API v2
     INTERVAL_MAP = {
@@ -47,7 +47,6 @@ class BitgetDataFetcher:
         params = {
             "symbol": symbol,
             "granularity": granularity,
-            "productType": "usdt-futures",
             "limit": limit
         }
 
