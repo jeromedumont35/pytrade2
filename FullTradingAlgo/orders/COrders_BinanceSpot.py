@@ -34,9 +34,9 @@ class COrders_BinanceSpot:
         for q in quotes:
             if symbol.endswith(q):
                 base = symbol[:-len(q)]
-                return f"{base}/USDT"
+                return f"{base}/USDC"
 
-        return f"{symbol}/USDT"
+        return f"{symbol}/USDC"
 
     def _get_price(self, symbol):
 
