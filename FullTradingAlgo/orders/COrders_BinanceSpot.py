@@ -7,6 +7,7 @@ class COrders_BinanceSpot:
     def __init__(self, api_key: str, api_secret: str, password: str = None):
 
         self.positions = {}
+
         self.client = ccxt.binance({
             "apiKey": api_key,
             "secret": api_secret,
@@ -92,17 +93,7 @@ class COrders_BinanceSpot:
                 amount=amount
             )
 
-            avg_price = price
-
-            if order.get("average"):
-                avg_price = order["average"]
-
-            self.positions[symbol_ccxt] = {
-                "amount": amount,
-                "entry_price": avg_price
-            }
-
-            print(f"✅ BUY {symbol_ccxt} amount={amount} price≈{avg_price}")
+            print(f"✅ BUY {symbol_ccxt} amount={amount}")
 
             return order
 
@@ -111,10 +102,13 @@ class COrders_BinanceSpot:
             print("❌ Achat erreur :", e)
             return None
 
-    def close_position(self, symbol: str, side: str, price=None, amount_ratio=1.0):
+    def close_position(self, symbol: str, side: str, price=None, amount_ratio=1.0, order_type="market"):
 
         if side != "SELL_LONG":
             raise ValueError("Spot supporte uniquement SELL_LONG")
+
+        if amount_ratio <= 0 or amount_ratio > 1:
+            raise ValueError("amount_ratio doit être entre 0 et 1")
 
         symbol_ccxt = self.convert_symbol_to_usdt(symbol)
         base = symbol_ccxt.split("/")[0]
@@ -132,14 +126,36 @@ class COrders_BinanceSpot:
 
         try:
 
-            order = self.client.create_order(
-                symbol=symbol_ccxt,
-                type="market",
-                side="sell",
-                amount=amount
-            )
+            if order_type == "market":
 
-            print(f"✅ SELL {symbol_ccxt} amount={amount}")
+                order = self.client.create_order(
+                    symbol=symbol_ccxt,
+                    type="market",
+                    side="sell",
+                    amount=amount
+                )
+
+                print(f"✅ SELL MARKET {symbol_ccxt} amount={amount}")
+
+            elif order_type == "limit":
+
+                if price is None:
+                    raise ValueError("Un prix est requis pour un ordre LIMIT")
+
+                price = float(self.client.price_to_precision(symbol_ccxt, price))
+
+                order = self.client.create_order(
+                    symbol=symbol_ccxt,
+                    type="limit",
+                    side="sell",
+                    amount=amount,
+                    price=price
+                )
+
+                print(f"📌 LIMIT SELL {symbol_ccxt} amount={amount} price={price}")
+
+            else:
+                raise ValueError("order_type doit être 'market' ou 'limit'")
 
             return order
 
@@ -182,8 +198,122 @@ class COrders_BinanceSpot:
             self.client.cancel_order(o["id"], symbol_ccxt)
             print("❎ cancel", o["id"])
 
+    def get_open_limit_orders(self, symbol: str):
+
+        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+
+        orders = self.client.fetch_open_orders(symbol_ccxt)
+
+        limit_orders = []
+
+        for o in orders:
+
+            if o["type"] == "limit":
+
+                remaining = o["amount"] - o["filled"]
+
+                limit_orders.append({
+                    "id": o["id"],
+                    "symbol": symbol_ccxt,
+                    "side": o["side"],
+                    "price": o["price"],
+                    "amount": o["amount"],
+                    "filled": o["filled"],
+                    "remaining": remaining,
+                    "timestamp": o["timestamp"]
+                })
+
+        return limit_orders
+
     # ===============================
-    # BOT INTERFACE (identique)
+    # POSITION RECONSTRUCTION
+    # ===============================
+
+    def get_position_info(self, symbol):
+
+        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        base = symbol_ccxt.split("/")[0]
+
+        balance = self.client.fetch_balance()
+        qty = balance["total"].get(base, 0)
+
+        if qty == 0:
+            return None
+
+        price = self._get_price(symbol_ccxt)
+
+        trades = self.client.fetch_my_trades(symbol_ccxt)
+
+        position_qty = 0
+        cost = 0
+        fees = 0
+
+        for t in trades:
+
+            trade_price = t["price"]
+            amount = t["amount"]
+
+            fee = 0
+            fee_asset = None
+
+            if t.get("fee"):
+                fee = t["fee"]["cost"]
+                fee_asset = t["fee"]["currency"]
+
+            if t["side"] == "buy":
+
+                position_qty += amount
+                cost += amount * trade_price
+
+                if fee_asset == base:
+                    position_qty -= fee
+                    fees += fee * trade_price
+
+                else:
+                    cost += fee
+                    fees += fee
+
+            else:
+
+                if position_qty <= 0:
+                    continue
+
+                avg_price = cost / position_qty
+
+                position_qty -= amount
+                cost -= amount * avg_price
+
+                if fee_asset == base:
+                    position_qty -= fee
+                    fees += fee * trade_price
+                else:
+                    fees += fee
+
+        if position_qty <= 0:
+            return None
+
+        avg_entry = cost / position_qty
+
+        value = qty * price
+
+        pnl = value - cost
+        roi = (pnl / cost) * 100
+
+        return {
+            "symbol": symbol_ccxt,
+            "side": "long",
+            "quantity": qty,
+            "avg_entry_price": avg_entry,
+            "current_price": price,
+            "position_value": value,
+            "cost": cost,
+            "fees_paid": fees,
+            "pnl": pnl,
+            "roi_percent": roi
+        }
+
+    # ===============================
+    # BOT INTERFACE
     # ===============================
 
     def place_order(self, price, side, asset, timestamp, amount_usdc=0, exit_type=None):
@@ -217,41 +347,3 @@ class COrders_BinanceSpot:
         else:
 
             print("⚠️ Action non supportée en spot :", side)
-
-    # ===============================
-    # POSITION INFO
-    # ===============================
-
-    def get_position_info(self, symbol):
-
-        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
-        base = symbol_ccxt.split("/")[0]
-
-        balance = self.client.fetch_balance()
-        amount = balance["total"].get(base, 0)
-
-        if amount == 0:
-            return None
-
-        price = self._get_price(symbol_ccxt)
-
-        entry_price = None
-
-        if symbol_ccxt in self.positions:
-            entry_price = self.positions[symbol_ccxt]["entry_price"]
-
-        performance = None
-
-        if entry_price:
-            performance = ((price - entry_price) / entry_price) * 100
-
-        return {
-            "symbol": symbol_ccxt,
-            "side": "long",
-            "contracts": amount,
-            "entry_price": entry_price,
-            "current_price": price,
-            "notional": amount * price,
-            "invested": amount * entry_price if entry_price else None,
-            "performance_pct": performance
-        }
