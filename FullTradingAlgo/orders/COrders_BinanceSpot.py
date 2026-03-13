@@ -19,7 +19,7 @@ class COrders_BinanceSpot:
 
         try:
             balance = self.client.fetch_balance()
-            print("✅ Connexion Binance OK | USDT :", balance["total"].get("USDT", 0))
+            print("✅ Connexion Binance OK | USDC :", balance["total"].get("USDC", 0))
         except Exception as e:
             raise ConnectionError(f"Connexion Binance échouée : {e}")
 
@@ -27,7 +27,7 @@ class COrders_BinanceSpot:
     # UTILITIES
     # ===============================
 
-    def convert_symbol_to_usdt(self, symbol: str):
+    def convert_symbol_to_usdc(self, symbol: str):
 
         quotes = ["USDT", "USDC", "BUSD"]
 
@@ -43,12 +43,12 @@ class COrders_BinanceSpot:
         ticker = self.client.fetch_ticker(symbol)
         return ticker["last"]
 
-    def _usdt_to_amount(self, symbol, usdt, price=None):
+    def _usdc_to_amount(self, symbol, usdc, price=None):
 
         if price is None:
             price = self._get_price(symbol)
 
-        amount = usdt / price
+        amount = usdc / price
         return float(self.client.amount_to_precision(symbol, amount))
 
     def _check_min_notional(self, symbol, amount, price):
@@ -70,17 +70,17 @@ class COrders_BinanceSpot:
     # ORDERS
     # ===============================
 
-    def open_position(self, symbol: str, side: str, usdt_amount: float, price=None):
+    def open_position(self, symbol: str, side: str, usdc_amount: float, price=None):
 
         if side != "BUY_LONG":
             raise ValueError("Spot supporte uniquement BUY_LONG")
 
-        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        symbol_ccxt = self.convert_symbol_to_usdc(symbol)
 
         if price is None:
             price = self._get_price(symbol_ccxt)
 
-        amount = self._usdt_to_amount(symbol_ccxt, usdt_amount, price)
+        amount = self._usdc_to_amount(symbol_ccxt, usdc_amount, price)
 
         self._check_min_notional(symbol_ccxt, amount, price)
 
@@ -110,7 +110,7 @@ class COrders_BinanceSpot:
         if amount_ratio <= 0 or amount_ratio > 1:
             raise ValueError("amount_ratio doit être entre 0 et 1")
 
-        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        symbol_ccxt = self.convert_symbol_to_usdc(symbol)
         base = symbol_ccxt.split("/")[0]
 
         balance = self.client.fetch_balance()
@@ -171,10 +171,10 @@ class COrders_BinanceSpot:
     def get_available_usdc(self):
 
         balance = self.client.fetch_balance()
-        usdt = balance["free"].get("USDT", 0)
+        usdc = balance["free"].get("USDC", 0)
 
-        print(f"💰 USDT disponible : {usdt}")
-        return usdt
+        print(f"💰 USDC disponible : {usdc}")
+        return usdc
 
     # ===============================
     # ORDERS MANAGEMENT
@@ -182,7 +182,7 @@ class COrders_BinanceSpot:
 
     def has_pending_order(self, symbol: str):
 
-        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        symbol_ccxt = self.convert_symbol_to_usdc(symbol)
 
         orders = self.client.fetch_open_orders(symbol_ccxt)
 
@@ -190,7 +190,7 @@ class COrders_BinanceSpot:
 
     def cancel_all_open_orders(self, symbol: str):
 
-        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        symbol_ccxt = self.convert_symbol_to_usdc(symbol)
 
         orders = self.client.fetch_open_orders(symbol_ccxt)
 
@@ -200,7 +200,7 @@ class COrders_BinanceSpot:
 
     def get_open_limit_orders(self, symbol: str):
 
-        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        symbol_ccxt = self.convert_symbol_to_usdc(symbol)
 
         orders = self.client.fetch_open_orders(symbol_ccxt)
 
@@ -231,7 +231,7 @@ class COrders_BinanceSpot:
 
     def get_position_info(self, symbol):
 
-        symbol_ccxt = self.convert_symbol_to_usdt(symbol)
+        symbol_ccxt = self.convert_symbol_to_usdc(symbol)
         base = symbol_ccxt.split("/")[0]
 
         balance = self.client.fetch_balance()
@@ -243,6 +243,8 @@ class COrders_BinanceSpot:
         price = self._get_price(symbol_ccxt)
 
         trades = self.client.fetch_my_trades(symbol_ccxt)
+
+        trades = sorted(trades, key=lambda x: x["timestamp"], reverse=True)
 
         position_qty = 0
         cost = 0
@@ -268,26 +270,16 @@ class COrders_BinanceSpot:
                 if fee_asset == base:
                     position_qty -= fee
                     fees += fee * trade_price
-
                 else:
                     cost += fee
                     fees += fee
 
             else:
 
-                if position_qty <= 0:
-                    continue
-
-                avg_price = cost / position_qty
-
                 position_qty -= amount
-                cost -= amount * avg_price
 
-                if fee_asset == base:
-                    position_qty -= fee
-                    fees += fee * trade_price
-                else:
-                    fees += fee
+            if position_qty >= qty:
+                break
 
         if position_qty <= 0:
             return None
