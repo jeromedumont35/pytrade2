@@ -41,7 +41,6 @@ def lire_identifiants(filepath: str) -> dict:
 
 if __name__ == "__main__":
 
-    # chemin du fichier
     filepath = "../../../Bitget_jdu.key"
 
     creds = lire_identifiants(filepath)
@@ -49,12 +48,15 @@ if __name__ == "__main__":
     API_KEY = creds["api_key"]
     API_SECRET = creds["api_secret"]
 
-    # création du bot
     bot = COrders_BinanceSpot(API_KEY, API_SECRET)
 
     symbol = "BTCUSDT"
 
-    print("----- BUY TEST -----")
+    # ===============================
+    # BUY MARKET
+    # ===============================
+
+    print("\n----- BUY MARKET TEST -----")
 
     bot.place_order(
         price=None,
@@ -64,14 +66,88 @@ if __name__ == "__main__":
         amount_usdc=6
     )
 
-    print("⏳ attente 10 secondes...")
-    time.sleep(10)
+    print("⏳ attente 5 secondes...")
+    time.sleep(5)
 
-    print("----- SELL TEST -----")
+    # ===============================
+    # POSITION INFO
+    # ===============================
 
-    bot.place_order(
-        price=None,
-        side="SELL_LONG",
-        asset=symbol,
-        timestamp=time.time()
+    print("\n----- POSITION INFO -----")
+
+    pos = bot.get_position_info(symbol)
+
+    if pos:
+        print("📊 Position :", pos)
+    else:
+        print("⚠️ Aucune position")
+
+    # ===============================
+    # LIMIT SELL PARTIEL
+    # ===============================
+
+    print("\n----- LIMIT SELL 50% -----")
+
+    price = bot._get_price(bot.convert_symbol_to_usdt(symbol))
+    limit_price = price * 1.01
+
+    bot.close_position(
+        symbol,
+        "SELL_LONG",
+        price=limit_price,
+        amount_ratio=0.5,
+        order_type="limit"
     )
+
+    print("⏳ attente 2 secondes...")
+    time.sleep(2)
+
+    # ===============================
+    # ORDERS OPEN
+    # ===============================
+
+    print("\n----- OPEN LIMIT ORDERS -----")
+
+    orders = bot.get_open_limit_orders(symbol)
+
+    if orders:
+        for o in orders:
+            print(o)
+    else:
+        print("⚠️ Aucun ordre LIMIT ouvert")
+
+    # ===============================
+    # POSITION INFO UPDATE
+    # ===============================
+
+    print("\n----- POSITION INFO UPDATE -----")
+
+    pos = bot.get_position_info(symbol)
+
+    if pos:
+        print(pos)
+
+    # ===============================
+    # CANCEL ORDERS
+    # ===============================
+
+    print("\n----- CANCEL OPEN ORDERS -----")
+
+    bot.cancel_all_open_orders(symbol)
+
+    print("⏳ attente 2 secondes...")
+    time.sleep(2)
+
+    # ===============================
+    # CLOSE POSITION FINAL
+    # ===============================
+
+    print("\n----- FINAL CLOSE POSITION -----")
+
+    bot.close_position(
+        symbol,
+        "SELL_LONG",
+        order_type="market"
+    )
+
+    print("\n----- TEST TERMINÉ -----")
