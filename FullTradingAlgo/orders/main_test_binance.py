@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
     print("\n----- LIMIT SELL 50% -----")
 
-    price = bot._get_price(bot.convert_symbol_to_usdt(symbol))
+    price = bot._get_price(bot.convert_symbol_to_usdc(symbol))
     limit_price = price * 1.01
 
     bot.close_position(
