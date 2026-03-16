@@ -5,7 +5,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from downloader import CBitgetDataFetcher
-from orders import COrders_Bitget
+from orders import COrders_BinanceSpot
 import CProd
 
 
