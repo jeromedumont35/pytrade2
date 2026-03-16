@@ -63,10 +63,9 @@ print(f"✅ Arguments reçus : MONTANT = {montant}, SYMBOL = {symbol}, NB_JOURS 
 
 # === Lecture des identifiants ===
 identifiants = lire_identifiants("../../../../Bitget_jdu.key")
-trader = COrders_Bitget.COrders_Bitget(
+trader = COrders_BinanceSpot.COrders_BinanceSpot(
     identifiants["api_key"],
-    identifiants["api_secret"],
-    identifiants["password"]
+    identifiants["api_secret"]
 )
 
 fetcher = CBitgetDataFetcher.BitgetDataFetcher()
@@ -77,7 +76,7 @@ runner = CProd.CProd(
     days=nb_jours,                # <-- 3e paramètre : nombre de jours
     trader=trader,
     risk_per_trade_pct=montant,
-    strategy_name="CStrat_SeuilMinuShort",
+    strategy_name="CStrat_longXentry",
     fetcher=fetcher,
     interval="1m"
 )
