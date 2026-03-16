@@ -63,7 +63,7 @@ if __name__ == "__main__":
         side="BUY_LONG",
         asset=symbol,
         timestamp=time.time(),
-        amount_usdc=6
+        amount_usdc=12
     )
 
     print("⏳ attente 5 secondes...")
