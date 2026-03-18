@@ -23,7 +23,7 @@ class CLauncher2:
 
         self.script_path = os.path.join(
             self.launcher_dir,
-            "S_Prod_Launcher.py"
+            "S_Prod_Launcher2.py"
         )
 
         if not os.path.exists(self.script_path):
@@ -108,13 +108,12 @@ class CLauncher2:
     # ------------------------------------------------------------------
     # PUBLIC
     # ------------------------------------------------------------------
-    def run_launcher(self, amount, symbol, nb_days):
+    def run_launcher(self, amount, symbol):
         cmd = [
             sys.executable,
             self.script_path,
             str(amount),
-            str(symbol),
-            str(nb_days)
+            str(symbol)
         ]
 
         print(f"[LAUNCH] {' '.join(cmd)}")
