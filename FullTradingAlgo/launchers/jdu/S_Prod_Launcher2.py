@@ -1,0 +1,83 @@
+import sys
+import os
+
+# === Gestion du path pour les imports ===
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from downloader import CBitgetDataFetcher
+from orders import COrders_BinanceSpot
+import CProd2
+
+
+def lire_identifiants(filepath: str) -> dict:
+    """
+    Récupère les identifiants API (clé, secret, mot de passe) stockés
+    sur les 3 premières lignes d’un fichier texte.
+    """
+    creds = {"api_key": None, "api_secret": None, "password": None}
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            lignes = f.readlines()
+        if len(lignes) < 3:
+            raise ValueError("⚠️ Le fichier doit contenir au moins 3 lignes.")
+        creds["api_key"] = lignes[0].strip()
+        creds["api_secret"] = lignes[1].strip()
+        creds["password"] = lignes[2].strip()
+    except FileNotFoundError:
+        print(f"❌ Fichier introuvable: {filepath}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"⚠️ Erreur: {e}")
+        sys.exit(1)
+    return creds
+
+
+# === Lecture des arguments CLI ===
+if len(sys.argv) != 3:
+    print("❌ Usage : python main_prod.py <MONTANT> <SYMBOL>)
+    print("Exemple : python main_prod.py 100 BNBUSDT")
+    sys.exit(1)
+
+# 1️⃣ Montant
+try:
+    montant = int(sys.argv[1])
+    if montant <= 0:
+        raise ValueError
+except ValueError:
+    print("❌ Le montant doit être un entier positif.")
+    sys.exit(1)
+
+# 2️⃣ Symbole
+symbol = sys.argv[2].upper()
+
+# 3️⃣ Nombre de jours
+try:
+    nb_jours = float(sys.argv[3])
+    if nb_jours <= 0:
+        raise ValueError
+except ValueError:
+    print("❌ Le nombre de jours doit être un nombre positif (ex: 1, 0.5, 2.5, etc.).")
+    sys.exit(1)
+
+print(f"✅ Arguments reçus : MONTANT = {montant}, SYMBOL = {symbol}")
+
+# === Lecture des identifiants ===
+identifiants = lire_identifiants("../../../../Bitget_jdu.key")
+trader = COrders_BinanceSpot.COrders_BinanceSpot(
+    identifiants["api_key"],
+    identifiants["api_secret"]
+)
+
+fetcher = CBitgetDataFetcher.BitgetDataFetcher()
+
+# === Lancement du runner ===
+runner = CProd2.CProd2(
+    p_symbol=symbol,
+    trader=trader,
+    p_montant=montant,
+    strategy_name="CStrat_longXentry",
+    fetcher=fetcher,
+    interval="1m"
+)
+
+runner.run_realtime_loop()
