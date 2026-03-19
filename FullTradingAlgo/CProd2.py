@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import requests
 import warnings
-import CTradingAlgo
+import CTradingAlgo2
 
 
 class CProd2:
