@@ -34,7 +34,7 @@ def lire_identifiants(filepath: str) -> dict:
 
 # === Lecture des arguments CLI ===
 if len(sys.argv) != 3:
-    print("❌ Usage : python main_prod.py <MONTANT> <SYMBOL>)
+    print("❌ Usage : python main_prod.py <MONTANT> <SYMBOL>")
     print("Exemple : python main_prod.py 100 BNBUSDT")
     sys.exit(1)
 
