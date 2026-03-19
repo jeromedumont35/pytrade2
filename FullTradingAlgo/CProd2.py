@@ -64,7 +64,7 @@ class CProd2:
                 print(f"\n⏰ Nouvelle minute détectée : {now}")
                 time.sleep(3)  # Attendre la publication de la bougie
 
-                l_bougies = self.fetcher._fetch_klines3(self.symbols, interval=self.interval,1000)
+                l_bougies = self.fetcher._fetch_klines3(self.symbols, interval=self.interval,limit=1000)
 
                 # Exécution stratégie sur dernière bougie
                 self.algo.run(l_bougies, execution=True)
