@@ -36,7 +36,19 @@ class CProd2:
             strategy_name=self.strategy_name
         )
 
-        self.symbol_dfs = {}
+        try:
+            # Import dynamique du module
+            module = importlib.import_module(f"strategies.{self.strategy_name}")
+            # Récupère la classe (même nom que strategy_name)
+            strategy_class = getattr(module, self.strategy_name)
+        except (ImportError, AttributeError):
+            raise ValueError(f"Unknown strategy: {self.strategy_name}")
+
+        # Instanciation
+        self.strategy = strategy_class(
+            self.interface_trade,
+            self.risk_per_trade_pct,
+        )
 
     @staticmethod
     def test_internet_connection(timeout=3):
