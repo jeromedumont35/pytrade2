@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import requests
 import warnings
-import CTradingAlgo2
 import importlib
 
 
@@ -31,12 +30,6 @@ class CProd2:
 
         print(f"📈 Initialisation du AlgoRunner pour stratégie '{strategy_name}' sur {len(symbols)} symboles.")
 
-        # Initialisation de l'algo principal
-        self.algo = CTradingAlgo2.CTradingAlgo2(
-            l_interface_trade=self.trader,
-            strategy_name=self.strategy_name
-        )
-
         try:
             # Import dynamique du module
             module = importlib.import_module(f"strategies.{self.strategy_name}")
@@ -47,7 +40,7 @@ class CProd2:
 
         # Instanciation
         self.strategy = strategy_class(
-            self.interface_trade,
+            self.trader,
             self.risk_per_trade_pct,
         )
 
