@@ -50,15 +50,6 @@ except ValueError:
 # 2️⃣ Symbole
 symbol = sys.argv[2].upper()
 
-# 3️⃣ Nombre de jours
-try:
-    nb_jours = float(sys.argv[3])
-    if nb_jours <= 0:
-        raise ValueError
-except ValueError:
-    print("❌ Le nombre de jours doit être un nombre positif (ex: 1, 0.5, 2.5, etc.).")
-    sys.exit(1)
-
 print(f"✅ Arguments reçus : MONTANT = {montant}, SYMBOL = {symbol}")
 
 # === Lecture des identifiants ===
