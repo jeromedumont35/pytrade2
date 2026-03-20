@@ -74,6 +74,6 @@ class CProd2:
                 l_bougies = self.fetcher._fetch_klines3(self.symbols, interval=self.interval,limit=1000)
 
                 # Exécution stratégie sur dernière bougie
-                self.algo.run(l_bougies, execution=True)
+                self.strategy.apply(l_bougies)
 
             time.sleep(0.5)
