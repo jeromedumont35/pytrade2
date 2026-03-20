@@ -211,23 +211,23 @@ class CTestRSI5Min_MADays:
 
         if DB is None or symbol not in DB:
             print(f"{symbol} : DB vide")
-            return False
+            return -1
 
         if dfoneminute is None or len(dfoneminute) == 0:
             print(f"{symbol} : dfoneminute vide")
-            return False
+            return -1
 
         last_close = dfoneminute["close"].iloc[-1]
 
         pattern_ok, low1, score = self.detect_rsi_recovery_pattern(dfoneminute)
 
         if not pattern_ok:
-            return False
+            return 0
 
         ma_periods = [9, 19, 49]
         daily_closes = DB[symbol]["1d"]["close"].values
 
-        price_condition = False
+        price_condition = True
         ma_values = []
 
         for p in ma_periods:
@@ -255,4 +255,4 @@ class CTestRSI5Min_MADays:
 
             self.update_signal_history(symbol, score, signal_date)
 
-        return True
+        return score
