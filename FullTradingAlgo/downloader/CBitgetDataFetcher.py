@@ -26,7 +26,7 @@ class BitgetDataFetcher:
         pass
 
     def _prepare_dataframe(self, candles):
-        df = pd.DataFrame(candles, columns=["time", "open", "high", "low", "close", "volume","x"])
+        df = pd.DataFrame(candles, columns=["time", "open", "high", "low", "close", "volume","x","y"])
         df["time"] = pd.to_datetime(pd.to_numeric(df["time"]), unit="ms", utc=True)
         df.set_index("time", inplace=True)
         df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
