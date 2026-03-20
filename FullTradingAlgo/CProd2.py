@@ -40,6 +40,7 @@ class CProd2:
 
         # Instanciation
         self.strategy = strategy_class(
+            p_symbol,
             self.trader,
             self.risk_per_trade_pct,
         )
