@@ -45,9 +45,10 @@ class BitgetDataFetcher:
         all_candles = []
 
         params = {
-            "symbol": symbol,
-            "granularity": granularity,
-            "limit": limit
+    "symbol": symbol,
+    "granularity": granularity,
+    "limit": limit,
+    "productType": "usdt-futures"
         }
 
         for attempt in range(max_retries):
