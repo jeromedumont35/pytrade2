@@ -28,7 +28,7 @@ class CProd2:
         self.fetcher = fetcher
         self.interval = interval
 
-        print(f"📈 Initialisation du AlgoRunner pour stratégie '{strategy_name}' sur {len(symbols)} symboles.")
+        print(f"📈 Initialisation du AlgoRunner pour stratégie '{strategy_name}' sur '{p_symbol}' symboles.")
 
         try:
             # Import dynamique du module
