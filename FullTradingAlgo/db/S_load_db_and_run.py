@@ -98,12 +98,36 @@ def reload_interval(interval, symbols, DB, l_PriceDatabase, l_RSIDatabase, l_rsi
     price_db_all = l_PriceDatabase.load(resolution=interval)
     rsi_db_all = l_RSIDatabase.load_rsi(resolution=interval, rsi_period=l_rsiperiod)
 
+    # 👉 NOUVEAU : chargement des weights
+    weights_all = l_RSIDatabase.load_rsi_weights(
+        resolution=interval,
+        rsi_period=l_rsiperiod
+    )
+
     for symbol in symbols:
+
+        # sécurité minimale (comme ton code implicite)
+        if symbol not in DB:
+            DB[symbol] = {}
+        if interval not in DB[symbol]:
+            DB[symbol][interval] = {}
+
+        # ===== PRIX =====
         DB[symbol][interval]["close"] = price_db_all[symbol][interval, "close"]
         DB[symbol][interval]["high"]  = price_db_all[symbol][interval, "high"]
         DB[symbol][interval]["low"]   = price_db_all[symbol][interval, "low"]
+
+        # ===== RSI =====
         DB[symbol][interval][f"RSI{l_rsiperiod}"] = \
             rsi_db_all[symbol][interval, f"RSI{l_rsiperiod}"]
+
+        # ===== 👉 AJOUT DES WEIGHTS (LA LIGNE QUI TE MANQUE) =====
+        if symbol in weights_all:
+            DB[symbol][interval][f"RSI{l_rsiperiod}_WEIGHTS"] = {
+                "avg_gain": weights_all[symbol]["avg_gain"],
+                "avg_loss": weights_all[symbol]["avg_loss"],
+                "last_close": weights_all[symbol]["last_close"]
+            }
 
     print(f"✅ Interval {interval} rechargé.")
 
