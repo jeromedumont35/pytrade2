@@ -17,16 +17,9 @@ from CTestOneSymbol import CTestOneSymbol
 # FONCTION POUR RÉCUPÉRER LES SYMBOLS USDT
 # ==========================================================
 def get_common_spot_symbols():
-    # ---------- BITGET SPOT ----------
-    r = requests.get(
-        "https://api.bitget.com/api/v2/spot/public/symbols",
-        timeout=10
-    )
+    r = requests.get("https://api.bitget.com/api/v2/spot/public/symbols", timeout=10)
     r.raise_for_status()
     data = r.json()
-
-    if "data" not in data:
-        raise Exception(f"Erreur API Bitget symbols : {data}")
 
     bitget_symbols = {
         f"{s['baseCoin']}USDT"
@@ -34,16 +27,9 @@ def get_common_spot_symbols():
         if s.get("quoteCoin") == "USDT"
     }
 
-    # ---------- BINANCE SPOT ----------
-    r = requests.get(
-        "https://api.binance.com/api/v3/exchangeInfo",
-        timeout=10
-    )
+    r = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=10)
     r.raise_for_status()
     data = r.json()
-
-    if "symbols" not in data:
-        raise Exception(f"Erreur API Binance symbols : {data}")
 
     binance_symbols = {
         s["symbol"]
@@ -52,15 +38,11 @@ def get_common_spot_symbols():
         and s.get("status") == "TRADING"
     }
 
-    # ---------- INTERSECTION ----------
-    common = sorted(bitget_symbols.intersection(binance_symbols))
-
-    return common
+    return sorted(bitget_symbols.intersection(binance_symbols))
 
 
 # ==========================================================
-# MAP INTERVAL -> NOM DE FICHIER CSV
-# Exemple attendu : 1d_xxxx.csv
+# MAP INTERVAL -> FICHIERS
 # ==========================================================
 def map_interval_files(directory: str):
     interval_map = {}
@@ -75,65 +57,61 @@ def map_interval_files(directory: str):
 
 
 # ==========================================================
-# DÉTECTER LES INTERVALS MODIFIÉS
+# DETECT CHANGES
 # ==========================================================
 def detect_changed_intervals(old_map, new_map):
     changed = []
 
     for interval, filename in new_map.items():
-        if interval not in old_map:
-            changed.append(interval)
-        elif old_map[interval] != filename:
+        if interval not in old_map or old_map[interval] != filename:
             changed.append(interval)
 
     return changed
 
 
 # ==========================================================
-# RELOAD D'UN INTERVAL SPÉCIFIQUE
+# INJECTION WEIGHTS (FACTORISÉ)
+# ==========================================================
+def inject_weights(DB, weights_all, symbol, interval, period):
+    if symbol in weights_all:
+        DB[symbol][interval][f"RSI{period}_WEIGHTS"] = {
+            "avg_gain": weights_all[symbol]["avg_gain"],
+            "avg_loss": weights_all[symbol]["avg_loss"],
+            "last_close": weights_all[symbol]["last_close"]
+        }
+
+
+# ==========================================================
+# RELOAD INTERVAL
 # ==========================================================
 def reload_interval(interval, symbols, DB, l_PriceDatabase, l_RSIDatabase, l_rsiperiod):
     print(f"⚡ Reload DB pour interval {interval}")
 
     price_db_all = l_PriceDatabase.load(resolution=interval)
     rsi_db_all = l_RSIDatabase.load_rsi(resolution=interval, rsi_period=l_rsiperiod)
-
-    # 👉 NOUVEAU : chargement des weights
-    weights_all = l_RSIDatabase.load_rsi_weights(
-        resolution=interval,
-        rsi_period=l_rsiperiod
-    )
+    weights_all = l_RSIDatabase.load_rsi_weights(resolution=interval, rsi_period=l_rsiperiod)
 
     for symbol in symbols:
 
-        # sécurité minimale (comme ton code implicite)
         if symbol not in DB:
             DB[symbol] = {}
         if interval not in DB[symbol]:
             DB[symbol][interval] = {}
 
-        # ===== PRIX =====
         DB[symbol][interval]["close"] = price_db_all[symbol][interval, "close"]
         DB[symbol][interval]["high"]  = price_db_all[symbol][interval, "high"]
         DB[symbol][interval]["low"]   = price_db_all[symbol][interval, "low"]
 
-        # ===== RSI =====
         DB[symbol][interval][f"RSI{l_rsiperiod}"] = \
             rsi_db_all[symbol][interval, f"RSI{l_rsiperiod}"]
 
-        # ===== 👉 AJOUT DES WEIGHTS (LA LIGNE QUI TE MANQUE) =====
-        if symbol in weights_all:
-            DB[symbol][interval][f"RSI{l_rsiperiod}_WEIGHTS"] = {
-                "avg_gain": weights_all[symbol]["avg_gain"],
-                "avg_loss": weights_all[symbol]["avg_loss"],
-                "last_close": weights_all[symbol]["last_close"]
-            }
+        inject_weights(DB, weights_all, symbol, interval, l_rsiperiod)
 
     print(f"✅ Interval {interval} rechargé.")
 
 
 # ==========================================================
-# VÉRIFICATION DES FICHIERS (APPELÉE DANS LA BOUCLE)
+# CHECK FILES
 # ==========================================================
 def check_and_update_files():
     global file_map
@@ -144,6 +122,7 @@ def check_and_update_files():
     if changed_intervals:
         print(f"⚠ Intervals modifiés détectés: {changed_intervals}")
         time.sleep(40)
+
         for interval in changed_intervals:
             if interval in available_intervals:
                 reload_interval(
@@ -162,60 +141,62 @@ def check_and_update_files():
 # INITIALISATION
 # ==========================================================
 
-# 🔹 Récupérer les symbols
 symbols = get_common_spot_symbols()
-#symbols = symbols[:100]  # limiter pour test
 print(f"Symbols utilisés ({len(symbols)}): {symbols}")
 
-# 🔹 Intervals utilisés
 available_intervals = ["1d", "1h"]
 print(f"Intervals configurés: {available_intervals}")
 
-# 🔹 Initialisation objets
 fetcher = CBitgetDataFetcher.BitgetDataFetcher()
 l_PriceDatabase = CPriceDatabase()
 l_RSIDatabase = CRSIDatabase()
-l_TestOneSymbol = CTestOneSymbol();
+l_TestOneSymbol = CTestOneSymbol()
 
 l_rsiperiod = 5
 
-# 🔹 Initialiser DB
+# DB INIT
 DB = {}
-
 for symbol in symbols:
     DB.setdefault(symbol, {})
     for interval in available_intervals:
         DB[symbol].setdefault(interval, {})
 
-# 🔹 Charger DB initialement
+# ==========================================================
+# CHARGEMENT INITIAL COMPLET (AVEC WEIGHTS)
+# ==========================================================
 for interval in available_intervals:
+
     price_db_all = l_PriceDatabase.load(resolution=interval)
     rsi_db_all = l_RSIDatabase.load_rsi(resolution=interval, rsi_period=l_rsiperiod)
+    weights_all = l_RSIDatabase.load_rsi_weights(resolution=interval, rsi_period=l_rsiperiod)
 
     for symbol in symbols:
+
         DB[symbol][interval]["close"] = price_db_all[symbol][interval, "close"]
         DB[symbol][interval]["high"]  = price_db_all[symbol][interval, "high"]
         DB[symbol][interval]["low"]   = price_db_all[symbol][interval, "low"]
+
         DB[symbol][interval][f"RSI{l_rsiperiod}"] = \
             rsi_db_all[symbol][interval, f"RSI{l_rsiperiod}"]
 
-print(f"DB initialisée avec RSI{l_rsiperiod}.")
+        inject_weights(DB, weights_all, symbol, interval, l_rsiperiod)
+
+print(f"✅ DB initialisée avec RSI{l_rsiperiod} + WEIGHTS")
 
 print(DB[symbols[0]]["1h"]["close"].iloc[-1])
 
-# 🔹 Initialiser la map des fichiers (UNE FOIS)
+# MAP INIT
 directory = "."
 file_map = map_interval_files(directory)
 
 
 # ==========================================================
-# BOUCLE INFINIE
+# BOUCLE
 # ==========================================================
 while True:
 
     for symbol in symbols:
 
-        # ✅ Vérification uniquement ici (comme demandé)
         check_and_update_files()
 
         try:
@@ -226,9 +207,6 @@ while True:
             )
 
             l_TestOneSymbol.realiser(DB, df, symbol)
-
-            #print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
-            #      f"Symbol: {symbol}, bougies récupérées: {len(df)}")
 
         except Exception as e:
             print(f"Erreur fetch pour {symbol}: {e}")
