@@ -38,25 +38,25 @@ class CTestAboveTrend:
     # ======================================================
     def count_days_above_rsi(self, DB, symbol, rsi_current):
 
-        if "RSI4H" not in DB[symbol]:
-            print(f"{symbol} : pas d'historique RSI4H")
+        if "RSI5" not in DB[symbol]["4h"]:
+            print(f"{symbol} : pas d'historique RSI5 4h")
             return 0
 
-        rsi_history = DB[symbol]["RSI4H"]
+        rsi_history = DB[symbol]["4h"]["RSI5"]
 
-        if len(rsi_history) == 0:
+        if rsi_history is None or len(rsi_history) == 0:
             return 0
 
         count = 0
 
-        # On parcourt à l'envers (du plus récent au plus ancien)
+        # parcours du plus récent au plus ancien
         for rsi_value in reversed(rsi_history):
             if rsi_value > rsi_current:
                 count += 1
             else:
                 break
 
-        # Conversion en jours (6 bougies 4h = 1 jour)
+        # 6 bougies 4h = 1 jour
         days = count / 6.0
 
         return days
