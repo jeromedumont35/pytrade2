@@ -144,7 +144,7 @@ def check_and_update_files():
 symbols = get_common_spot_symbols()
 print(f"Symbols utilisés ({len(symbols)}): {symbols}")
 
-available_intervals = ["1d", "1h"]
+available_intervals = ["1d", "4h", "1h"]
 print(f"Intervals configurés: {available_intervals}")
 
 fetcher = CBitgetDataFetcher.BitgetDataFetcher()
