@@ -46,7 +46,7 @@ class CRSIDatabase:
         prefix = f"{resolution}_"
 
         # Supprimer anciens fichiers RSI pour cette période (weights inclus, sera recréé)
-        pattern = f"{prefix}rsi{rsi_period}_2*{self.EXT}"
+        pattern = f"{prefix}rsi{rsi_period}_*{self.EXT}"
         for f in glob.glob(pattern):
             os.remove(f)
 
@@ -93,7 +93,7 @@ class CRSIDatabase:
         prefix = f"{resolution}_"
         price_type = f"RSI{rsi_period}"
 
-        files = glob.glob(f"{prefix}rsi{rsi_period}_*{self.EXT}")
+        files = glob.glob(f"{prefix}rsi{rsi_period}_2*{self.EXT}")
         if not files:
             print(f"[{resolution}] Aucun fichier RSI{rsi_period} trouvé")
             return DB
