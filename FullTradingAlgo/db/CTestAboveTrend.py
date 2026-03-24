@@ -34,6 +34,34 @@ class CTestAboveTrend:
         return rsi
 
     # ======================================================
+    # COMPTE LE NOMBRE DE JOURS AU-DESSUS DU RSI ACTUEL
+    # ======================================================
+    def count_days_above_rsi(self, DB, symbol, rsi_current):
+
+        if "RSI4H" not in DB[symbol]:
+            print(f"{symbol} : pas d'historique RSI4H")
+            return 0
+
+        rsi_history = DB[symbol]["RSI4H"]
+
+        if len(rsi_history) == 0:
+            return 0
+
+        count = 0
+
+        # On parcourt à l'envers (du plus récent au plus ancien)
+        for rsi_value in reversed(rsi_history):
+            if rsi_value > rsi_current:
+                count += 1
+            else:
+                break
+
+        # Conversion en jours (6 bougies 4h = 1 jour)
+        days = count / 6.0
+
+        return days
+
+    # ======================================================
     # MAIN
     # ======================================================
     def realiser(self, DB, dfoneminute, symbol):
@@ -50,8 +78,8 @@ class CTestAboveTrend:
             print(f"{symbol} absent du DB")
             return False
 
-        if "1h" not in DB[symbol]:
-            print(f"{symbol} : pas de données 1h")
+        if "4h" not in DB[symbol]:
+            print(f"{symbol} : pas de données 4h")
             return False
 
         # ===== PRIX COURANT =====
@@ -60,20 +88,27 @@ class CTestAboveTrend:
         # ===== WEIGHTS =====
         key_weights = "RSI5_WEIGHTS"
 
-        if key_weights not in DB[symbol]["1h"]:
-            print(f"{symbol} : pas de weights RSI5")
+        if key_weights not in DB[symbol]["4h"]:
+            print(f"{symbol} : pas de weights RSI5 en 4h")
             return False
 
-        weight = DB[symbol]["1h"][key_weights]
+        weight = DB[symbol]["4h"][key_weights]
 
-        # ===== RSI COURANT =====
+        # ===== RSI COURANT 4H =====
         rsi_current = self.compute_rsi_from_weights(
             weight,
             new_close=last_close,
             period=5
         )
 
-        # ===== AFFICHAGE SUR UNE LIGNE =====
-        print(f"{symbol} | close: {last_close:.4f} | RSI1h(5): {rsi_current:.2f}")
+        # ===== NOMBRE DE JOURS AU-DESSUS =====
+        days_above = self.count_days_above_rsi(DB, symbol, rsi_current)
+
+        # ===== AFFICHAGE =====
+        print(
+            f"{symbol} | close: {last_close:.4f} | "
+            f"RSI4h(5): {rsi_current:.2f} | "
+            f"jours au-dessus: {days_above:.2f}"
+        )
 
         return True
