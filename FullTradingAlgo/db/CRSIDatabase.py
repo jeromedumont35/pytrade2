@@ -46,7 +46,7 @@ class CRSIDatabase:
         prefix = f"{resolution}_"
 
         # Supprimer anciens fichiers RSI pour cette période (weights inclus, sera recréé)
-        pattern = f"{prefix}rsi{rsi_period}_*{self.EXT}"
+        pattern = f"{prefix}rsi{rsi_period}_2*{self.EXT}"
         for f in glob.glob(pattern):
             os.remove(f)
 
