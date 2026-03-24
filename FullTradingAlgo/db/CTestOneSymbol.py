@@ -23,9 +23,9 @@ class CTestOneSymbol:
 
         #print(f"Analyse du symbole : {symbol}")
 
-        result = self.test_rsi5min_madays.realiser(DB, dfoneminute, symbol)
+        result = self.test_above_trend.realiser(DB, dfoneminute, symbol)
 
-        if result > 70:
-            self.launcher.run_launcher(amount=6,symbol=symbol)
+        #if result > 70:
+        #    self.launcher.run_launcher(amount=6,symbol=symbol)
 
         return result
