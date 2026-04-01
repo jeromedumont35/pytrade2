@@ -82,6 +82,25 @@ def inject_weights(DB, weights_all, symbol, interval, period):
 
 
 # ==========================================================
+# 🔥 FILTRE RSI 4H
+# ==========================================================
+def filter_symbols_rsi_4h(DB, symbols, rsi_period=5, threshold=40):
+    filtered = []
+
+    for symbol in symbols:
+        try:
+            rsi_series = DB[symbol]["4h"][f"RSI{rsi_period}"]
+
+            if len(rsi_series) > 0 and rsi_series.iloc[-1] < threshold:
+                filtered.append(symbol)
+
+        except Exception:
+            continue
+
+    return filtered
+
+
+# ==========================================================
 # RELOAD INTERVAL
 # ==========================================================
 def reload_interval(interval, symbols, DB, l_PriceDatabase, l_RSIDatabase, l_rsiperiod):
@@ -140,7 +159,6 @@ def check_and_update_files():
 # ==========================================================
 # INITIALISATION
 # ==========================================================
-
 symbols = get_common_spot_symbols()
 print(f"Symbols utilisés ({len(symbols)}): {symbols}")
 
@@ -162,7 +180,7 @@ for symbol in symbols:
         DB[symbol].setdefault(interval, {})
 
 # ==========================================================
-# CHARGEMENT INITIAL COMPLET (AVEC WEIGHTS)
+# CHARGEMENT INITIAL COMPLET
 # ==========================================================
 for interval in available_intervals:
 
@@ -183,8 +201,6 @@ for interval in available_intervals:
 
 print(f"✅ DB initialisée avec RSI{l_rsiperiod} + WEIGHTS")
 
-print(DB[symbols[0]]["1h"]["close"].iloc[-1])
-
 # MAP INIT
 directory = "."
 file_map = map_interval_files(directory)
@@ -195,9 +211,14 @@ file_map = map_interval_files(directory)
 # ==========================================================
 while True:
 
-    for symbol in symbols:
+    check_and_update_files()
 
-        check_and_update_files()
+    # 🔥 FILTRE ICI
+    filtered_symbols = filter_symbols_rsi_4h(DB, symbols, l_rsiperiod, 40)
+
+    print(f"🎯 {len(filtered_symbols)} symbols avec RSI4h < 40")
+
+    for symbol in filtered_symbols:
 
         try:
             df = fetcher._fetch_klines3(
