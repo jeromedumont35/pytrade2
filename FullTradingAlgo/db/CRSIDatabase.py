@@ -15,9 +15,7 @@ class CRSIDatabase:
     # ======================================================
     @staticmethod
     def compute_rsi_with_weights(series: pd.Series, period: int = 14):
-        """
-        Calcule le RSI selon Wilder et retourne aussi avg_gain et avg_loss
-        """
+
         alpha = 1 / period
 
         delta = series.diff()
@@ -35,9 +33,10 @@ class CRSIDatabase:
         return rsi, avg_gain, avg_loss
 
     # ======================================================
-    # SAVE RSI + WEIGHTS
+    # SAVE RSI + WEIGHTS (OPTIMISÉ)
     # ======================================================
     def save_rsi_from_data(self, data: dict, resolution: str, rsi_period: int):
+
         df_close = data.get("close")
         if df_close is None or df_close.empty:
             print("No close data to compute RSI")
@@ -45,24 +44,26 @@ class CRSIDatabase:
 
         prefix = f"{resolution}_"
 
-        # Supprimer anciens fichiers RSI pour cette période (weights inclus, sera recréé)
+        # Clean anciens fichiers
         pattern = f"{prefix}rsi{rsi_period}_*{self.EXT}"
         for f in glob.glob(pattern):
             os.remove(f)
 
-        df_rsi = pd.DataFrame(index=df_close.index)
+        # ✅ STRUCTURE OPTIMALE
+        rsi_dict = {}
         weights_rows = []
 
         for symbol in df_close.columns:
+
             series = df_close[symbol].dropna()
             if len(series) < rsi_period + 1:
                 continue
 
-            # ===== CALCUL RSI + WEIGHTS EN UNE PASSE =====
             rsi_series, avg_gain, avg_loss = self.compute_rsi_with_weights(series, rsi_period)
-            df_rsi[symbol] = rsi_series
 
-            # ===== DERNIER POIDS POUR CHARGEMENT RAPIDE =====
+            # ✅ STOCKAGE TEMPORAIRE (PAS DE FRAGMENTATION)
+            rsi_dict[symbol] = rsi_series
+
             weights_rows.append({
                 "symbol": symbol,
                 "avg_gain": avg_gain.iloc[-1],
@@ -70,25 +71,32 @@ class CRSIDatabase:
                 "last_close": series.iloc[-1]
             })
 
+        # ✅ BUILD FINAL (UNE SEULE FOIS)
+        df_rsi = pd.DataFrame(rsi_dict)
+
         # ===== SAVE RSI =====
         df_rsi_to_save = df_rsi.sort_index(ascending=False)
+
         ts = datetime.utcnow().strftime("%Y_%m_%dT%H%M")
         rsi_filename = f"{prefix}rsi{rsi_period}_{ts}.csv"
+
         df_rsi_to_save.to_csv(rsi_filename, sep=";", float_format="%.1f")
         print(f"[{resolution}] Saved RSI -> {rsi_filename}")
 
         # ===== SAVE WEIGHTS =====
         weights_filename = f"{prefix}rsi{rsi_period}_weights{self.EXT}"
         df_weights = pd.DataFrame(weights_rows)
+
         df_weights.to_csv(weights_filename, sep=";", index=False, float_format="%.10f")
         print(f"[{resolution}] Saved WEIGHTS -> {weights_filename}")
 
         return df_rsi
 
     # ======================================================
-    # LOAD RSI INTO DB
+    # LOAD RSI INTO DB (inchangé)
     # ======================================================
     def load_rsi(self, resolution: str, rsi_period: int):
+
         DB = {}
         prefix = f"{resolution}_"
         price_type = f"RSI{rsi_period}"
@@ -99,14 +107,17 @@ class CRSIDatabase:
             return DB
 
         latest_file = max(files, key=os.path.getctime)
+
         df = pd.read_csv(latest_file, sep=";", index_col=0)
         df.index = pd.to_datetime(df.index)
         df.sort_index(inplace=True)
 
         for symbol in df.columns:
             series = df[symbol].astype(float)
+
             if symbol not in DB:
                 DB[symbol] = pd.DataFrame(index=series.index)
+
             DB[symbol][(resolution, price_type)] = series
 
         for symbol in DB:
@@ -118,9 +129,10 @@ class CRSIDatabase:
         return DB
 
     # ======================================================
-    # LOAD RSI WEIGHTS INTO DICT
+    # LOAD RSI WEIGHTS
     # ======================================================
     def load_rsi_weights(self, resolution: str, rsi_period: int):
+
         prefix = f"{resolution}_"
         filename = f"{prefix}rsi{rsi_period}_weights{self.EXT}"
 
