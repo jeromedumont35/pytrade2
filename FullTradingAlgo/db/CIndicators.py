@@ -15,6 +15,153 @@ class CIndicators:
         pass
 
     # ======================================================
+    # CALCUL RSI COURANT
+    # ======================================================
+    def compute_rsi_from_weights(self, weight, new_close, period):
+        """
+        Calcule le RSI courant à partir des poids stockés
+        
+        Args:
+            weight: Dict contenant "last_close", "avg_gain", "avg_loss"
+            new_close: Nouveau prix de clôture
+            period: Période RSI
+        
+        Returns:
+            float: Valeur du RSI
+        """
+        delta = new_close - weight["last_close"]
+
+        gain = max(delta, 0)
+        loss = max(-delta, 0)
+
+        avg_gain = (weight["avg_gain"] * (period - 1) + gain) / period
+        avg_loss = (weight["avg_loss"] * (period - 1) + loss) / period
+
+        if avg_loss == 0:
+            return 100.0
+
+        rs = avg_gain / avg_loss
+        return 100 - (100 / (1 + rs))
+
+    # ======================================================
+    # RSI MIN
+    # ======================================================
+    def is_lowest_rsi_last_days(self, DB, symbol, rsi_current, min_days=2):
+        """
+        Vérifie si le RSI courant est le plus bas des N derniers jours
+        
+        Args:
+            DB: Base de données avec historique RSI
+            symbol: Symbole du pair
+            rsi_current: Valeur RSI courante
+            min_days: Nombre de jours à vérifier (défaut: 2)
+        
+        Returns:
+            bool: True si RSI courant est le minimum, False sinon
+        """
+        if "RSI5" not in DB[symbol]["4h"]:
+            return False
+
+        rsi_history = DB[symbol]["4h"]["RSI5"]
+
+        if rsi_history is None or len(rsi_history) < min_days * 6:
+            return False
+
+        last_values = rsi_history[-int(min_days * 6):]
+
+        return rsi_current <= min(last_values)
+
+    # ======================================================
+    # MA100 (minute)
+    # ======================================================
+    def compute_ma100(self, dfoneminute):
+        """
+        Calcule la MA100 sur les données minute
+        
+        Args:
+            dfoneminute: DataFrame avec données minute
+        
+        Returns:
+            Series: MA100 pour chaque ligne du DataFrame
+        """
+        return dfoneminute["close"].rolling(window=100).mean()
+
+    # ======================================================
+    # MA DAILY depuis DB
+    # ======================================================
+    def is_close_near_daily_ma(self, DB, symbol, last_close):
+        """
+        Vérifie si le prix est proche d'une MA daily (10, 20, 50 ou 100)
+        Proche = prix entre MA et MA * 1.01
+        
+        Args:
+            DB: Base de données avec données daily
+            symbol: Symbole du pair
+            last_close: Prix de clôture courant
+        
+        Returns:
+            bool: True si proche d'une MA, False sinon
+        """
+        if "1d" not in DB[symbol]:
+            return False
+
+        if "close" not in DB[symbol]["1d"]:
+            return False
+
+        closes = DB[symbol]["1d"]["close"]
+
+        if closes is None or len(closes) == 0:
+            return False
+
+        df = pd.DataFrame({"close": closes})
+
+        periods = [10, 20, 50, 100]
+
+        for period in periods:
+
+            if len(df) < period:
+                continue
+
+            ma = df["close"].rolling(window=period).mean().iloc[-1]
+
+            if pd.isna(ma):
+                continue
+
+            if ma <= last_close <= ma * 1.01:
+                print(f"{symbol} | INFO : proche MA{period}d")
+                return True
+
+        return False
+
+    # ======================================================
+    # TOUCH MA100
+    # ======================================================
+    def has_touched_ma100(self, dfoneminute, ma100, n_dernieres_minutes=60):
+        """
+        Vérifie si le prix a touché la MA100 dans les N dernières minutes
+        Touché = high >= 0.995 * MA100
+        
+        Args:
+            dfoneminute: DataFrame avec données minute
+            ma100: Series contenant la MA100
+            n_dernieres_minutes: Nombre de dernières minutes à vérifier (défaut: 60)
+        
+        Returns:
+            bool: True si touchée, False sinon
+        """
+        df = dfoneminute.copy()
+        df["ma100"] = ma100
+
+        df_recent = df.tail(n_dernieres_minutes)
+
+        for _, row in df_recent.iterrows():
+            if pd.notna(row["ma100"]):
+                if row["high"] >= 0.995 * row["ma100"]:
+                    return True
+
+        return False
+
+    # ======================================================
     # CHECK: Prix au-dessus de MA10 (1day) ET MA10 en hausse
     # ======================================================
     def check_above_ma_and_ma_inc(self, DB, dfoneminute, symbol, ma_period=10, timeframe="1d"):
