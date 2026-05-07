@@ -56,22 +56,21 @@ class CTestAboveTrend:
             print(f"{symbol} | FAIL : pas de données 4h")
             return False
 
+        DBOneS = DB[symbol]  # Extraction des données du symbole
         last_close = dfoneminute["close"].iloc[-1]
 
         key_weights = "RSI5_WEIGHTS"
 
-        if key_weights not in DB[symbol]["4h"]:
+        if key_weights not in DBOneS["4h"]:
             print(f"{symbol} | FAIL : pas de weights RSI")
             return False
-
-        weight = DB[symbol]["4h"][key_weights]
 
         # ======================================================
         # CALCUL RSI COURANT
         # ======================================================
         rsi_current = self.indicators.compute_rsi_from_weights(
-            weight,
-            new_close=last_close,
+            DBOneS=DBOneS,
+            dfoneminute=dfoneminute,
             period=5
         )
 
@@ -79,7 +78,7 @@ class CTestAboveTrend:
         # ETAPE 1 : RSI MIN
         # ======================================================
         print(f"\n{symbol} | TEST 1 : RSI minimum (2j)")
-        if not self.indicators.is_lowest_rsi_last_days(DB, symbol, rsi_current, min_days=2):
+        if not self.indicators.is_lowest_rsi_last_days(DBOneS=DBOneS, dfoneminute=dfoneminute, min_days=2):
             print(f"{symbol} | ❌ FAIL : RSI pas minimum 2j | RSI actuel: {rsi_current:.2f}\n")
             return False
         print(f"{symbol} | ✅ PASS : RSI est minimum | RSI actuel: {rsi_current:.2f}\n")
@@ -88,7 +87,7 @@ class CTestAboveTrend:
         # ETAPE 2 : PROCHE MA DAILY (1D)
         # ======================================================
         print(f"{symbol} | TEST 2 : Proche MA daily")
-        if not self.indicators.is_close_near_daily_ma(DB, symbol, last_close):
+        if not self.indicators.is_close_near_daily_ma(DBOneS=DBOneS, dfoneminute=dfoneminute):
             print(f"{symbol} | ❌ FAIL : pas proche MA daily\n")
             return False
         print(f"{symbol} | ✅ PASS : Proche MA daily | close: {last_close:.4f}\n")
@@ -97,7 +96,7 @@ class CTestAboveTrend:
         # ETAPE 3 : CLOSE < MA100 (1m)
         # ======================================================
         print(f"{symbol} | TEST 3 : Close < MA100 (1min)")
-        ma100 = self.indicators.compute_ma100(dfoneminute)
+        ma100 = self.indicators.compute_ma100(DBOneS=DBOneS, dfoneminute=dfoneminute)
         last_ma100 = ma100.iloc[-1]
 
         if pd.isna(last_ma100):
@@ -114,7 +113,7 @@ class CTestAboveTrend:
         # ETAPE 4 : TOUCH MA100
         # ======================================================
         print(f"{symbol} | TEST 4 : Touch MA100 (dernières {self.n_dernieres_minutes_touche_100}min)")
-        if not self.indicators.has_touched_ma100(dfoneminute, ma100, self.n_dernieres_minutes_touche_100):
+        if not self.indicators.has_touched_ma100(DBOneS=DBOneS, dfoneminute=dfoneminute, ma100=ma100, n_dernieres_minutes=self.n_dernieres_minutes_touche_100):
             print(f"{symbol} | ❌ FAIL : pas de touch MA100\n")
             return False
         
