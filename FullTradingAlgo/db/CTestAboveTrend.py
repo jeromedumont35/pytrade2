@@ -20,7 +20,7 @@ class CTestAboveTrend:
     # ======================================================
     # MAIN
     # ======================================================
-    def realiser(self, DB, dfoneminute, symbol):
+    def realiser(self, DBOneS, dfoneminute, symbol=None):
         """
         Teste si le pair respecte la stratégie "Above Trend":
         1. RSI5 est le minimum des 2 derniers jours
@@ -29,40 +29,37 @@ class CTestAboveTrend:
         4. Le prix a touché la MA100 récemment
         
         Args:
-            DB: Base de données avec données par timeframe
+            DBOneS: Dict avec données d'un symbole (DB[symbol])
             dfoneminute: DataFrame avec données minute
-            symbol: Symbole du pair
+            symbol: Symbole du pair (optionnel, utilisé uniquement pour les logs)
         
         Returns:
             bool: True si tous les tests passent, False sinon
         """
 
+        symbol_log = symbol if symbol else "UNKNOWN"
+
         # ======================================================
         # VALIDATIONS BASIQUES
         # ======================================================
-        if DB is None or len(DB) == 0:
-            print(f"{symbol} | FAIL : DB vide")
+        if DBOneS is None or len(DBOneS) == 0:
+            print(f"{symbol_log} | FAIL : DBOneS vide")
             return False
 
         if dfoneminute is None or len(dfoneminute) == 0:
-            print(f"{symbol} | FAIL : dfoneminute vide")
+            print(f"{symbol_log} | FAIL : dfoneminute vide")
             return False
 
-        if symbol not in DB:
-            print(f"{symbol} | FAIL : symbole absent DB")
+        if "4h" not in DBOneS:
+            print(f"{symbol_log} | FAIL : pas de données 4h")
             return False
 
-        if "4h" not in DB[symbol]:
-            print(f"{symbol} | FAIL : pas de données 4h")
-            return False
-
-        DBOneS = DB[symbol]  # Extraction des données du symbole
         last_close = dfoneminute["close"].iloc[-1]
 
         key_weights = "RSI5_WEIGHTS"
 
         if key_weights not in DBOneS["4h"]:
-            print(f"{symbol} | FAIL : pas de weights RSI")
+            print(f"{symbol_log} | FAIL : pas de weights RSI")
             return False
 
         # ======================================================
@@ -77,53 +74,53 @@ class CTestAboveTrend:
         # ======================================================
         # ETAPE 1 : RSI MIN
         # ======================================================
-        print(f"\n{symbol} | TEST 1 : RSI minimum (2j)")
+        print(f"\n{symbol_log} | TEST 1 : RSI minimum (2j)")
         if not self.indicators.is_lowest_rsi_last_days(DBOneS=DBOneS, dfoneminute=dfoneminute, min_days=2):
-            print(f"{symbol} | ❌ FAIL : RSI pas minimum 2j | RSI actuel: {rsi_current:.2f}\n")
+            print(f"{symbol_log} | ❌ FAIL : RSI pas minimum 2j | RSI actuel: {rsi_current:.2f}\n")
             return False
-        print(f"{symbol} | ✅ PASS : RSI est minimum | RSI actuel: {rsi_current:.2f}\n")
+        print(f"{symbol_log} | ✅ PASS : RSI est minimum | RSI actuel: {rsi_current:.2f}\n")
 
         # ======================================================
         # ETAPE 2 : PROCHE MA DAILY (1D)
         # ======================================================
-        print(f"{symbol} | TEST 2 : Proche MA daily")
+        print(f"{symbol_log} | TEST 2 : Proche MA daily")
         if not self.indicators.is_close_near_daily_ma(DBOneS=DBOneS, dfoneminute=dfoneminute):
-            print(f"{symbol} | ❌ FAIL : pas proche MA daily\n")
+            print(f"{symbol_log} | ❌ FAIL : pas proche MA daily\n")
             return False
-        print(f"{symbol} | ✅ PASS : Proche MA daily | close: {last_close:.4f}\n")
+        print(f"{symbol_log} | ✅ PASS : Proche MA daily | close: {last_close:.4f}\n")
 
         # ======================================================
         # ETAPE 3 : CLOSE < MA100 (1m)
         # ======================================================
-        print(f"{symbol} | TEST 3 : Close < MA100 (1min)")
+        print(f"{symbol_log} | TEST 3 : Close < MA100 (1min)")
         ma100 = self.indicators.compute_ma100(DBOneS=DBOneS, dfoneminute=dfoneminute)
         last_ma100 = ma100.iloc[-1]
 
         if pd.isna(last_ma100):
-            print(f"{symbol} | ❌ FAIL : MA100 NaN\n")
+            print(f"{symbol_log} | ❌ FAIL : MA100 NaN\n")
             return False
 
         if last_close >= last_ma100:
-            print(f"{symbol} | ❌ FAIL : close ({last_close:.4f}) >= MA100 ({last_ma100:.4f})\n")
+            print(f"{symbol_log} | ❌ FAIL : close ({last_close:.4f}) >= MA100 ({last_ma100:.4f})\n")
             return False
         
-        print(f"{symbol} | ✅ PASS : Close < MA100 | close: {last_close:.4f} < MA100: {last_ma100:.4f}\n")
+        print(f"{symbol_log} | ✅ PASS : Close < MA100 | close: {last_close:.4f} < MA100: {last_ma100:.4f}\n")
 
         # ======================================================
         # ETAPE 4 : TOUCH MA100
         # ======================================================
-        print(f"{symbol} | TEST 4 : Touch MA100 (dernières {self.n_dernieres_minutes_touche_100}min)")
+        print(f"{symbol_log} | TEST 4 : Touch MA100 (dernières {self.n_dernieres_minutes_touche_100}min)")
         if not self.indicators.has_touched_ma100(DBOneS=DBOneS, dfoneminute=dfoneminute, ma100=ma100, n_dernieres_minutes=self.n_dernieres_minutes_touche_100):
-            print(f"{symbol} | ❌ FAIL : pas de touch MA100\n")
+            print(f"{symbol_log} | ❌ FAIL : pas de touch MA100\n")
             return False
         
-        print(f"{symbol} | ✅ PASS : MA100 touchée\n")
+        print(f"{symbol_log} | ✅ PASS : MA100 touchée\n")
 
         # ======================================================
         # SUCCESS
         # ======================================================
         print(
-            f"{symbol} | 🎉 SUCCESS - TOUS LES TESTS PASSENT\n"
+            f"{symbol_log} | 🎉 SUCCESS - TOUS LES TESTS PASSENT\n"
             f"  • Close: {last_close:.4f}\n"
             f"  • MA100: {last_ma100:.4f}\n"
             f"  • RSI: {rsi_current:.2f}\n"
