@@ -8,7 +8,7 @@ from CFetcherMultiSymbols import CFetcherMultiSymbols
 from FullTradingAlgo.downloader import CBitgetDataFetcher
 from CPriceDatabase import CPriceDatabase
 from CRSIDatabase import CRSIDatabase
-from CTestOneSymbol import CTestOneSymbol
+from FullTradingAlgo.db.CTestOneSymbol import CTestOneSymbol
 from CLoadDB import CLoadDB
 
 
@@ -96,7 +96,7 @@ while True:
                 if df is None or df.empty:
                     continue
 
-                l_TestOneSymbol.realiser(DB, df, symbol)
+                l_TestOneSymbol.realiser(DB[symbol], df, symbol=symbol)
 
             except Exception as e:
                 print(f"Erreur fetch pour {symbol}: {e}")
