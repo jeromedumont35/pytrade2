@@ -2,30 +2,42 @@ import os
 import time
 import requests
 from pathlib import Path
-from CLauncher3 import CLauncher3
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from CTestAboveTrend import CTestAboveTrend
-from CTestRSI5Min_MADays import CTestRSI5Min_MADays
+from FullTradingAlgo.db.CTestAboveTrend import CTestAboveTrend
+from FullTradingAlgo.db.CTestRSI5Min_MADays import CTestRSI5Min_MADays
+from FullTradingAlgo.CLauncher3 import CLauncher3
 
 
 class CTestOneSymbol:
+    """
+    Classe orchestratrice qui teste un symbole avec différentes stratégies
+    """
 
     def __init__(self):
         self.test_above_trend = CTestAboveTrend()
         self.test_rsi5min_madays = CTestRSI5Min_MADays()
         self.launcher = CLauncher3()
 
+    def realiser(self, DBOneS, dfoneminute, symbol=None):
+        """
+        Teste un symbole avec la stratégie "Above Trend"
+        
+        Args:
+            DBOneS: Dict avec données d'un symbole (DB[symbol])
+            dfoneminute: DataFrame avec données minute
+            symbol: Symbole du pair (optionnel, utilisé uniquement pour les logs)
+        
+        Returns:
+            bool: Résultat du test
+        """
 
-    def realiser(self, DB, dfoneminute, symbol):
+        result = self.test_above_trend.realiser(DBOneS, dfoneminute, symbol=symbol)
 
-        #print(f"Analyse du symbole : {symbol}")
-
-        result = self.test_above_trend.realiser(DB, dfoneminute, symbol)
-
-        #if result > 70:
-        #    self.launcher.run_launcher(amount=6,symbol=symbol)
+        # Possibilité de lancer un trade si le test passe
+        # if result:
+        #    self.launcher.run_launcher(amount=6, symbol=symbol)
 
         return result
