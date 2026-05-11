@@ -246,40 +246,51 @@ class COrders_BinanceSpot:
 
         trades = sorted(trades, key=lambda x: x["timestamp"], reverse=True)
 
-        position_qty = 0
-        cost = 0
-        fees = 0
+        remaining_needed = qty
+        sold_to_offset = 0.0
+        cost = 0.0
+        fees = 0.0
 
         for t in trades:
+
+            if remaining_needed <= 0:
+                break
 
             trade_price = t["price"]
             amount = t["amount"]
 
-            fee = 0
+            fee = 0.0
             fee_asset = None
 
             if t.get("fee"):
                 fee = t["fee"]["cost"]
                 fee_asset = t["fee"]["currency"]
 
-            if t["side"] == "buy":
+            if t["side"] == "sell":
 
-                position_qty += amount
-                cost += amount * trade_price
-
-                if fee_asset == base:
-                    position_qty -= fee
-                    fees += fee * trade_price
-                else:
-                    cost += fee
+                sold_to_offset += amount
+                if fee_asset and fee_asset != base:
                     fees += fee
 
             else:
 
-                position_qty -= amount
+                if fee_asset == base:
+                    effective_amount = amount - fee
+                    fees += fee * trade_price
+                else:
+                    effective_amount = amount
+                    fees += fee
 
-            if position_qty >= qty:
-                break
+                if sold_to_offset >= effective_amount:
+                    sold_to_offset -= effective_amount
+                else:
+                    contributing = effective_amount - sold_to_offset
+                    sold_to_offset = 0.0
+                    contributing = min(contributing, remaining_needed)
+                    cost += contributing * trade_price
+                    remaining_needed -= contributing
+
+        position_qty = qty - remaining_needed
 
         if position_qty <= 0:
             return None
@@ -303,6 +314,40 @@ class COrders_BinanceSpot:
             "pnl": pnl,
             "roi_percent": roi
         }
+
+    def get_all_positions(self, excluded=("USDC", "USDT", "BUSD")):
+
+        balance = self.client.fetch_balance()
+        positions = {}
+
+        for asset, qty in balance["total"].items():
+            if asset in excluded or qty == 0:
+                continue
+            symbol = f"{asset}/USDC"
+            if symbol not in self.client.markets:
+                continue
+            try:
+                info = self.get_position_info(asset + "USDC")
+                if info:
+                    positions[symbol] = info
+            except Exception as e:
+                print(f"⚠️ Impossible de récupérer {symbol} : {e}")
+
+        return positions
+
+    def get_position_count(self, excluded=("USDC", "USDT", "BUSD")):
+
+        balance = self.client.fetch_balance()
+        count = 0
+
+        for asset, qty in balance["total"].items():
+            if asset in excluded or qty == 0:
+                continue
+            symbol = f"{asset}/USDC"
+            if symbol in self.client.markets:
+                count += 1
+
+        return count
 
     # ===============================
     # BOT INTERFACE

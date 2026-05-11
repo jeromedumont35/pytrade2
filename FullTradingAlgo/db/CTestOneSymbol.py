@@ -6,9 +6,9 @@ from pathlib import Path
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from FullTradingAlgo.db.CTestAboveTrend import CTestAboveTrend
+from FullTradingAlgo.db.CTestHighDivergence import CTestHighDivergence
 from FullTradingAlgo.db.CTestRSI5Min_MADays import CTestRSI5Min_MADays
-from FullTradingAlgo.CLauncher3 import CLauncher3
+from FullTradingAlgo.db.CLauncher3 import CLauncher3
 
 
 class CTestOneSymbol:
@@ -17,8 +17,7 @@ class CTestOneSymbol:
     """
 
     def __init__(self):
-        self.test_above_trend = CTestAboveTrend()
-        self.test_rsi5min_madays = CTestRSI5Min_MADays()
+        self.test_above_trend = CTestHighDivergence()
         self.launcher = CLauncher3()
 
     def realiser(self, DBOneS, dfoneminute, symbol=None):

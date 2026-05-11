@@ -1,5 +1,6 @@
 import sys
 import time
+import COrders_BinanceSpot
 
 
 def lire_identifiants(filepath: str) -> dict:
@@ -48,7 +49,7 @@ if __name__ == "__main__":
     API_KEY = creds["api_key"]
     API_SECRET = creds["api_secret"]
 
-    bot = COrders_BinanceSpot(API_KEY, API_SECRET)
+    bot = COrders_BinanceSpot.COrders_BinanceSpot(API_KEY, API_SECRET)
 
     symbol = "BTCUSDT"
 
@@ -74,8 +75,15 @@ if __name__ == "__main__":
     # ===============================
 
     print("\n----- POSITION INFO -----")
+    pos = bot.get_position_info("STOUSDT")
+    if pos:
+        print("📊 Position :", pos)
+    else:
+        print("⚠️ Aucune position")
 
     pos = bot.get_position_info(symbol)
+
+    allpos = bot.get_all_positions()
 
     if pos:
         print("📊 Position :", pos)
